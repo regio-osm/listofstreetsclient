@@ -1,4 +1,4 @@
-package de.diesei.listofstreets;
+package de.regioosm.listofstreetsclient;
 import java.io.FileReader;
 import java.io.Reader;
 import java.util.Properties;
@@ -31,6 +31,9 @@ public class Applicationconfiguration {
 	public Applicationconfiguration () {
 			// get some configuration infos
 		String configuration_filename = "listofstreets.properties";		
+
+		final String dir = System.getProperty("user.dir");
+		System.out.println("current dir = " + dir);
 
 		try {
 			Reader reader = new FileReader( configuration_filename );
