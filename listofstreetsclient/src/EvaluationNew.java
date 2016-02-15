@@ -59,13 +59,13 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.text.*;
+import java.util.Map;
 import java.util.logging.*;
 
-import de.diesei.listofstreets.StreetCollection;
-import de.diesei.listofstreets.Applicationconfiguration;
-import de.diesei.listofstreets.StreetCollection.StreetNameIdenticalLevel;
+import de.regioosm.listofstreetsclient.Applicationconfiguration;
 
 import java.net.URLDecoder;
+
 
 
 /**
@@ -88,16 +88,32 @@ import java.net.URLDecoder;
 
 public class EvaluationNew {
 	
-	private StreetNameIdenticalLevel streetnameIdenticalLevel = StreetCollection.StreetNameIdenticalLevel.EXACTLY;
+	private StreetNameIdenticalLevel streetnameIdenticalLevel = StreetNameIdenticalLevel.EXACTLY;
 	private String country = "Bundesrepublik Deutschland";
+	private Long countryDbId = -1L;
 	private String municipality = "";
+	private Long municipalityDbId = -1L;
+	private String municipalityGeometryBinaryString = "";
 	private String officialkeysId = "";
 	private String polygonstate = "";
 	private boolean streetrefMustBeUsedForIdenticaly = false;
 	private String streetrefOSMKey = "";
+	private FieldsForUniqueStreet fieldsForUniqueStreet = FieldsForUniqueStreet.STREET;
+	private java.util.Date osmdbTimestamp = null;
+	private java.util.Date evaluationTimestamp = null;
+	private boolean evaluationTypeFull = false;
+	private String evaluationText = "";
 
 	public static final Logger logger = Logger.getLogger(EvaluationNew.class.getName());
 	
+	public enum FieldsForUniqueStreet {
+		STREET, STREET_REF, STREET_POSTCODE, STREET_POSTCODE_REF;
+	}
+	
+	public enum StreetNameIdenticalLevel {
+		ROUGHLY, EXACTLY;
+	}
+
 	public StreetNameIdenticalLevel getStreetnameIdenticalLevel() {
 		return streetnameIdenticalLevel;
 	}
@@ -108,6 +124,10 @@ public class EvaluationNew {
 
 	public String getMunicipality() {
 		return municipality;
+	}
+
+	public Long getCountryDbId() {
+		return this.countryDbId;
 	}
 
 	public String getOfficialkeysId() {
@@ -126,6 +146,35 @@ public class EvaluationNew {
 		return streetrefOSMKey;
 	}
 	
+	public Long getmunicipalityDbId() {
+		return municipalityDbId;
+	}
+	
+	public String getMunitipalityGeometryBinaryString() {
+		return municipalityGeometryBinaryString;
+	}
+	
+	public FieldsForUniqueStreet getfieldsForUniqueStreet() {
+		return fieldsForUniqueStreet;
+	}
+	
+	public java.util.Date getOsmdbTimestamp() {
+		return this.osmdbTimestamp;
+	}
+	
+	public java.util.Date getEvaluationTimestamp() {
+		return this.evaluationTimestamp;
+	}
+
+	public boolean getEvaluationTypeFull() {
+		return this.evaluationTypeFull;
+	}
+
+	public String getEvaluationText() {
+		return this.evaluationText;
+	}
+	
+	
 	public void setStreetnameIdenticalLevel(StreetNameIdenticalLevel roughly) {
 		this.streetnameIdenticalLevel = roughly;
 	}
@@ -136,6 +185,10 @@ public class EvaluationNew {
 
 	public void setMunicipality(String municipality) {
 		this.municipality = municipality;
+	}
+
+	public void setCountryDbId(Long countryid) {
+		this.countryDbId = countryid;
 	}
 
 	public void setOfficialkeysId(String officialkeysid) {
@@ -157,21 +210,249 @@ public class EvaluationNew {
 		this.streetrefOSMKey = "";
 	}
 
+	public void setmunicipalityDbId(Long id) {
+		this.municipalityDbId = id;
+	}
+	
+	public void setMunitipalityGeometryBinaryString(String geometrystring) {
+		this.municipalityGeometryBinaryString = geometrystring;
+	}
+
+	public void setfieldsForUniqueStreet(FieldsForUniqueStreet fields) {
+		this.fieldsForUniqueStreet = fields;
+	}
+	
+	public void setOsmdbTimestamp(java.util.Date timestamp) {
+		this.osmdbTimestamp = timestamp;
+	}
+	
+	public void setEvaluationTimestamp(java.util.Date timestamp) {
+		this.evaluationTimestamp = timestamp;
+	}
+		
+	public void setEvaluationTypeFull(boolean full) {
+		this.evaluationTypeFull = full;
+	}
+
+	public void setEvaluationText(String text) {
+		this.evaluationText = text;
+	}
 	
 	
+	private void storeEvaluation(StreetCollection streets) {
+
+Integer evaluationOverviewId = -1;		
+		
+		DateFormat time_formatter_iso8601 = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ");		// in iso8601 format, with timezone
+		DateFormat time_formatter_iso8601wozone = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");		// in iso8601 format, without timezone
+		DateFormat time_formatter_dateonly = new SimpleDateFormat("yyyy-MM-dd");
+
+		Integer streets_list_count = 0;
+		Integer streets_listonly_count = 0;
+		Integer streets_identical_count = 0;
+		Integer streets_osmonly_count = 0;
+
+		try {
+			Integer next_full_overview_id = -1;
+			if((1==0) && (this.getEvaluationTypeFull())) {
+
+				if(this.getEvaluationText().equals("")) {
+					java.util.Date temp_time = new java.util.Date();
+					this.setEvaluationText(time_formatter_dateonly.format(temp_time));
+					logger.log(Level.FINE, "test zeit onlydate ==="+this.getEvaluationText()+"===");
+				}
+
+				String sql_max_full_overview_id = "SELECT MAX(evaluation_number) AS max_full_number FROM evaluation_overview where evaluation_type = 'full';";
+				logger.log(Level.FINE, "hole SQL-Statement sql_max_full_overview_id ==="+sql_max_full_overview_id+"===");
+				Statement stmt_max_full_overview_id = con_listofstreets.createStatement();
+				ResultSet rs_max_full_overview_id = stmt_max_full_overview_id.executeQuery( sql_max_full_overview_id );
+				if(rs_max_full_overview_id.next()) {
+					next_full_overview_id = 1 + rs_max_full_overview_id.getInt("max_full_number");
+					logger.log(Level.FINE, "got already used max number for full evaluation type ==="+next_full_overview_id+"===");
+				}
+
+				String insertbefehl_evalationoverview = "INSERT INTO evaluation_overview (evaluation_first_id, evaluation_last_id, description, evaluation_type, evaluation_number) ";
+				insertbefehl_evalationoverview += "VALUES (-1, -1, '" + this.getEvaluationText() +"', 'full', " + next_full_overview_id + ");";
+				logger.log(Level.FINE, "insertbefehl_evalationoverview ==="+insertbefehl_evalationoverview+"===");
+				Statement stmt_insertevalationoverview = con_listofstreets.createStatement();
+				String[] dbautogenkeys = { "id" };
+				try {
+					stmt_insertevalationoverview.executeUpdate( insertbefehl_evalationoverview, dbautogenkeys );
+
+					ResultSet rs_getautogenkeys = stmt_insertevalationoverview.getGeneratedKeys();
+				    while (rs_getautogenkeys.next()) {
+				    	logger.log(Level.FINE, "Key returned from getGeneratedKeys():"
+				            + rs_getautogenkeys.getInt(1));
+				    	evaluationOverviewId = rs_getautogenkeys.getInt("id");
+				        logger.log(Level.FINE, "got new id from table evalation_overview, id ===" + evaluationOverviewId + "===");
+				    } 
+				    rs_getautogenkeys.close();
+
+				}
+				catch( SQLException e) {
+					logger.log(Level.INFO, "ERROR: during insert in table evaluation_overview, insert code was ==="+insertbefehl_evalationoverview+"===");
+					logger.log(Level.INFO, e.toString());
+					System.out.println("ERROR: during insert in table evaluation_overview, insert code was ==="+insertbefehl_evalationoverview+"===");
+					System.out.println(e.toString());
+				}
+			}
+
+			
+			
+			String streetresultInsertSql = "INSERT INTO evaluation_street"
+				+ " (evaluation_id, street_id, name, streetref, osm_id, osm_type, osm_keyvalue)"
+					+ " VALUES (?, ?, ?, ?, ?, ?, ?);";
+			PreparedStatement streetresultInsertStmt = con_listofstreets.prepareStatement(streetresultInsertSql);
+			System.out.println("Insert street result string ===" + streetresultInsertSql + "===");
+			logger.log(Level.FINEST, "insert sql for evaluation_street row ===" + streetresultInsertSql + "===");
+
+				
+			Long evaluationId = -1L;
+			String evaluationInsertSql = "INSERT INTO evaluation (country_id, municipality_id, evaluation_overview_id,"
+				+ " number_liststreets, number_osmstreets, number_osmsinglestreets,number_missingstreets,tstamp, osmdb_tstamp)"
+				+ " VALUES (?, ?, ?, 0, 0, 0, 0, ?::TIMESTAMPTZ, ?::TIMESTAMPTZ);";
+
+			String[] dbautogenkeys = { "id" };
+			PreparedStatement evaluationInsertStmt = con_listofstreets.prepareStatement(evaluationInsertSql, dbautogenkeys);
+			System.out.println("Insert evaluation string ===" + evaluationInsertSql + "===");
+			logger.log(Level.FINEST, "insert sql for evaluation ===" + evaluationInsertSql + "===");
+			evaluationInsertStmt.setLong(1, this.getCountryDbId());
+			evaluationInsertStmt.setLong(2, this.getmunicipalityDbId());
+			evaluationInsertStmt.setLong(3, evaluationOverviewId);
+			evaluationInsertStmt.setString(4, time_formatter_iso8601wozone.format(this.getEvaluationTimestamp()));
+			evaluationInsertStmt.setString(5, time_formatter_iso8601wozone.format(this.getOsmdbTimestamp()));
+
+			String evaluationUpdateSql = "UPDATE evaluation SET"
+				+ " number_liststreets = ?, number_osmstreets = ?, number_missingstreets = ?,"
+				+ " number_osmsinglestreets = ?  WHERE id = ?;";
+			logger.log(Level.FINE, "update_evaluation ===" + evaluationUpdateSql + "===");
+			PreparedStatement evaluationUpdateStmt = con_listofstreets.prepareStatement(evaluationUpdateSql);
+
+				
+System.out.println("para 4 ===" + time_formatter_iso8601wozone.format(this.getEvaluationTimestamp()) + "===");
+System.out.println("para 5 ===" + time_formatter_iso8601wozone.format(this.getOsmdbTimestamp()) + "===");
+			
+			try {
+				evaluationInsertStmt.execute();
+				ResultSet evaluationInsertRS = evaluationInsertStmt.getGeneratedKeys();
+			    while (evaluationInsertRS.next()) {
+			    	logger.log(Level.FINEST, "Key returned from getGeneratedKeys():"
+			            + evaluationInsertRS.getLong(1));
+			    	evaluationId = evaluationInsertRS.getLong("id");
+			    }
+			    evaluationInsertRS.close();
+			}
+			catch( SQLException e) {
+				logger.log(Level.INFO, "ERROR: during insert in table evaluation_overview, insert code was ===" + evaluationInsertSql + "===");
+				logger.log(Level.INFO, e.toString());
+				System.out.println("ERROR: during insert in table evaluation_overview, insert code was ===" + evaluationInsertSql + "===");
+				System.out.println(e.toString());
+			}
+		    evaluationInsertStmt.close();
+
+			con_listofstreets.setAutoCommit(false);
+
+
+	    	for (Map.Entry<String,Street> entry : streets.cache.entrySet()) {
+				Street activestreet = entry.getValue();
+				//if(housenumber.getstate().equals("unchanged"))
+				//count++;
 	
+				if(activestreet.osm_id.equals("")) {
+				} else if(( ! activestreet.osm_id.equals("")) && (activestreet.street_id.equals(""))) {
+					if(	(activestreet.osm_objectkeyvalue != null) &&
+						( ! activestreet.osm_objectkeyvalue.equals("")) &&
+						(activestreet.osm_objectkeyvalue.indexOf("place=") == 0)) {		// place= nur-osm-Objekte nicht aufführen, weder in nur-osm-Zahl noch mit Namen
+					} else {
+					}
+				} else if(( ! activestreet.osm_id.equals("")) && ( ! activestreet.street_id.equals(""))) {
+				}
+	
+				if(activestreet.osm_id.equals("")) {
+					if( ! activestreet.street_id.equals("")) {
+						streets_list_count++;
+						streets_listonly_count++;
+					}
+				}	// end of at least one osm-id available, so got odbl-state of all  - if(activestreet.osm_id.equals("")) {
+				else {
+					if( ! activestreet.street_id.equals("")) {
+						streets_identical_count++;
+						streets_list_count++;
+					} else {
+						streets_osmonly_count++;
+					}
+				}
+
+Long local_street_id = -1L;
+				if( ! activestreet.street_id.equals("")) {
+					if(activestreet.street_id.indexOf(",") != -1) {
+						System.out.println("WARNING: more than one street row found, take only first one ==="
+							+ activestreet.street_id.substring(0,activestreet.street_id.indexOf(","))+"=== from list ==="+activestreet.street_id+"===");
+						local_street_id = Long.parseLong(activestreet.street_id.substring(0,activestreet.street_id.indexOf(",")));
+					} else {
+						local_street_id = Long.parseLong(activestreet.street_id);
+					}
+				} else {
+System.out.println("missing street_id at actual street ===" + activestreet.name + "===");
+				}
+
+				streetresultInsertStmt.setLong(1, evaluationId);
+				streetresultInsertStmt.setLong(2, local_street_id);
+				streetresultInsertStmt.setString(3, activestreet.name);
+				streetresultInsertStmt.setString(4, activestreet.streetref);
+				streetresultInsertStmt.setString(5, activestreet.osm_id);
+				streetresultInsertStmt.setString(6, activestreet.osm_type);
+				streetresultInsertStmt.setString(7, activestreet.osm_objectkeyvalue);
+				streetresultInsertStmt.execute();
+	    	}
+			streetresultInsertStmt.close();
+
+				// transaction commit
+			con_listofstreets.commit();
+				// re-activate standard auto-transation mode for every db-action
+			con_listofstreets.setAutoCommit(true);
+
+			evaluationUpdateStmt.setInt(1, streets_list_count);
+			evaluationUpdateStmt.setInt(2, streets_identical_count);
+			evaluationUpdateStmt.setInt(3, streets_listonly_count);
+			evaluationUpdateStmt.setInt(4, streets_osmonly_count);
+			evaluationUpdateStmt.setLong(5, evaluationId);
+	System.out.println("1 ===" + streets_list_count + "===");
+	System.out.println("2 ===" + streets_identical_count + "===");
+	System.out.println("3 ===" + streets_listonly_count + "===");
+	System.out.println("4 ===" + streets_osmonly_count + "===");
+	System.out.println("5 ===" + evaluationId + "===");
+			try {
+				evaluationUpdateStmt.execute();
+			}
+			catch( SQLException e) {
+				logger.log(Level.INFO, "ERROR: during insert in table evaluation, insert code was ===" + evaluationUpdateSql + "===");
+				logger.log(Level.FINE, e.toString());
+				System.out.println("ERROR: during insert in table evaluation, insert code was ===" + evaluationUpdateSql + "===");
+				System.out.println(e.toString());
+			}
+			evaluationUpdateStmt.close();
+
+
+			System.out.println("strassen_soll_anzahl: " + streets_list_count);
+			System.out.println("streets_listonly_count: " + streets_listonly_count);
+			System.out.println("streets_osmonly_count: " + streets_osmonly_count);
+		}
+		catch( SQLException e) {
+			logger.log(Level.INFO, e.toString());
+			System.out.println(e.toString());
+			return;
+		}
+	}
+
+
 	static Connection con_listofstreets = null;
 	static Connection con_mapnik = null;
 	static Applicationconfiguration configuration = new Applicationconfiguration();
-
-
 	
 	public static void main(String args[]) {
-
-
-		Boolean evaluation_type_full = false;
-		Integer evaluation_overview_id = -1;
-		String evaluation_text = "";
+		Boolean evaluationTypeFull = false;
+		String evaluationText = "";
 
 		
 		java.util.Date time_program_startedtime = new java.util.Date();
@@ -224,6 +505,7 @@ public class EvaluationNew {
 			e.printStackTrace();
 			System.exit(1);
 		}
+
 		try {
 				//Connection of own project-specific DB
 			String url_listofstreets = configuration.db_application_url;
@@ -237,13 +519,13 @@ public class EvaluationNew {
 
 			StreetCollection osmstreets = new StreetCollection();
 			StreetCollection liststreets = new StreetCollection();
-			StreetCollection evaluatedstreets = new StreetCollection();
+			StreetCollection mergedstreets = new StreetCollection();
 
 			java.util.Date time_act_municipality_starttime = null;
 			java.util.Date time_last_step = null;
 			java.util.Date time_now = null;
 
-			java.util.Date time_evalation = null;
+			java.util.Date time_evaluation = null;
 			java.util.Date time_osmdb = null;
 
 
@@ -273,49 +555,42 @@ public class EvaluationNew {
 							sqlbefehl_jobs_whereclause += "AND ";
 						sqlbefehl_jobs_whereclause += "osm_relation_id = '"+args[argsi+1]+"'";
 						args_ok_count += 2;
-					}
-					if(args[argsi].equals("-gemeindeschluessel")) {
+					} else if(args[argsi].equals("-gemeindeschluessel")) {
 						if( ! sqlbefehl_jobs_whereclause.equals(""))
 							sqlbefehl_jobs_whereclause += "AND ";
 						sqlbefehl_jobs_whereclause += "officialkeys_id = '"+args[argsi+1]+"'";
 						args_ok_count += 2;
-					}
-					if(args[argsi].equals("-polygonstate")) {
+					} else if(args[argsi].equals("-polygonstate")) {
 						parameter_polygonstate = args[argsi+1];
 						if( ! sqlbefehl_jobs_whereclause.equals(""))
 							sqlbefehl_jobs_whereclause += "AND ";
 						sqlbefehl_jobs_whereclause += "polygon_state = '"+args[argsi+1]+"'";
 						args_ok_count += 2;
-					}
-					if(args[argsi].equals("-country")) {
+					} else if(args[argsi].equals("-country")) {
 						logger.log(Level.FINE, "\ncountry parameter encoded ==="+URLDecoder.decode(args[argsi+1], "UTF-8")+"===");
 						if( ! sqlbefehl_jobs_whereclause.equals(""))
 							sqlbefehl_jobs_whereclause += "AND ";
 						sqlbefehl_jobs_whereclause += "country = '"
 							+ URLDecoder.decode(args[argsi+1], "UTF-8") + "' ";
 						args_ok_count += 2;
-					}
-					if(args[argsi].equals("-name")) {
+					} else if(args[argsi].equals("-municipality") || args[argsi].equals("-name")) {
 						logger.log(Level.FINE, "\ncountry name encoded ==="+URLDecoder.decode(args[argsi+1], "UTF-8")+"===");
 						if( ! sqlbefehl_jobs_whereclause.equals(""))
 							sqlbefehl_jobs_whereclause += "AND ";
 						sqlbefehl_jobs_whereclause += "name = '"
 							+ URLDecoder.decode(args[argsi+1], "UTF-8") + "' ";
 						args_ok_count += 2;
-					}
-					if(args[argsi].equals("-municipalityhierarchy")) {
+					} else if(args[argsi].equals("-municipalityhierarchy")) {
 						if( ! sqlbefehl_jobs_whereclause.equals(""))
 							sqlbefehl_jobs_whereclause += "AND ";
 						sqlbefehl_jobs_whereclause += "osm_hierarchy like '%"+args[argsi+1]+"%'";
 						args_ok_count += 2;
-					}
-					if(args[argsi].equals("-evaluationtext")) {
-						evaluation_text = args[argsi+1];
+					} else if(args[argsi].equals("-evaluationtext")) {
+						evaluationText = args[argsi+1];
 						args_ok_count += 2;
-					}
-					if(args[argsi].equals("-evaluationtype")) {
+					} else if(args[argsi].equals("-evaluationtype")) {
 						if(args[argsi+1].equals("full")) {
-							evaluation_type_full = true;
+							evaluationTypeFull = true;
 							logger.log(Level.FINE, "ok, evaltype was correctly 'full'");
 							System.out.println("ok, evaltype was correctly 'full'");
 						} else {
@@ -323,6 +598,8 @@ public class EvaluationNew {
 							System.out.println("ERROR: evaltype was wrong '"+args[argsi+1]+"'");
 						}
 						args_ok_count += 2;
+					} else {
+						System.out.println("unknown Parameter ===" + args[argsi] + "===");
 					}
 				}
 				logger.log(Level.INFO, " Program-Call with arguments for main query filtering, here WHERE-Query part ==="+sqlbefehl_jobs_whereclause+"===");
@@ -348,49 +625,6 @@ public class EvaluationNew {
 
 			String osmosis_laststatefile = configuration.osmosis_laststatefile;
 
-			Integer next_full_overview_id = -1;
-			if(evaluation_type_full) {
-
-				if(evaluation_text.equals("")) {
-					java.util.Date temp_time = new java.util.Date();
-					evaluation_text = time_formatter_dateonly.format(temp_time);
-					logger.log(Level.FINE, "test zeit onlydate ==="+evaluation_text+"===");
-				}
-
-				String sql_max_full_overview_id = "SELECT MAX(evaluation_number) AS max_full_number FROM evaluation_overview where evaluation_type = 'full';";
-				logger.log(Level.FINE, "hole SQL-Statement sql_max_full_overview_id ==="+sql_max_full_overview_id+"===");
-				Statement stmt_max_full_overview_id = con_listofstreets.createStatement();
-				ResultSet rs_max_full_overview_id = stmt_max_full_overview_id.executeQuery( sql_max_full_overview_id );
-				if(rs_max_full_overview_id.next()) {
-					next_full_overview_id = 1 + rs_max_full_overview_id.getInt("max_full_number");
-					logger.log(Level.FINE, "got already used max number for full evaluation type ==="+next_full_overview_id+"===");
-				}
-
-				String insertbefehl_evalationoverview = "INSERT INTO evaluation_overview (evaluation_first_id, evaluation_last_id, description, evaluation_type, evaluation_number) ";
-				insertbefehl_evalationoverview += "VALUES (-1, -1, '" + evaluation_text +"', 'full', " + next_full_overview_id + ");";
-				logger.log(Level.FINE, "insertbefehl_evalationoverview ==="+insertbefehl_evalationoverview+"===");
-				Statement stmt_insertevalationoverview = con_listofstreets.createStatement();
-				String[] dbautogenkeys = { "id" };
-				try {
-					stmt_insertevalationoverview.executeUpdate( insertbefehl_evalationoverview, dbautogenkeys );
-
-					ResultSet rs_getautogenkeys = stmt_insertevalationoverview.getGeneratedKeys();
-				    while (rs_getautogenkeys.next()) {
-				    	logger.log(Level.FINE, "Key returned from getGeneratedKeys():"
-				            + rs_getautogenkeys.getInt(1));
-				        evaluation_overview_id = rs_getautogenkeys.getInt("id");
-				        logger.log(Level.FINE, "got new id from table evalation_overview, id ==="+evaluation_overview_id+"===");
-				    } 
-				    rs_getautogenkeys.close();
-
-				}
-				catch( SQLException e) {
-					logger.log(Level.INFO, "ERROR: during insert in table evaluation_overview, insert code was ==="+insertbefehl_evalationoverview+"===");
-					logger.log(Level.INFO, e.toString());
-					System.out.println("ERROR: during insert in table evaluation_overview, insert code was ==="+insertbefehl_evalationoverview+"===");
-					System.out.println(e.toString());
-				}
-			}
 
 
 			java.util.Date time_detail_start = null;
@@ -406,7 +640,7 @@ public class EvaluationNew {
 			Integer municipality_count = 0;
 			while(rs_jobs.next()) {
 
-				time_evalation = new java.util.Date();
+				time_evaluation = new java.util.Date();
 
 				try {
 						// read the filestamp of the update of the local osm-db. This timestamp will be stored together with the evaluation
@@ -449,9 +683,6 @@ public class EvaluationNew {
 				akt_gebietsgeometrie = rs_jobs.getString("polygon");
 				akt_parameterstreetref = rs_jobs.getString("parameterstreetref");
 
-				String sqlbefehl_objekte = "";
-				Statement stmt_objekte;
-				ResultSet rs_objekte;
 
 					// Array of all name-variants, which will be requested by sql-statement; most important at END
 				String[] keyvariation_namelist = {"old_name", "loc_name", "alt_name", "official_name", "name"};
@@ -473,686 +704,47 @@ public class EvaluationNew {
 					
 					osmstreets.clear();
 					liststreets.clear();
-					evaluatedstreets.clear();
+					mergedstreets.clear();
 						
 					if(rs_jobs.getString("countryname").equals("Brasil"))
-						evaluation.setStreetnameIdenticalLevel(StreetCollection.StreetNameIdenticalLevel.ROUGHLY);
+						evaluation.setStreetnameIdenticalLevel(StreetNameIdenticalLevel.ROUGHLY);
 					else
-						evaluation.setStreetnameIdenticalLevel(StreetCollection.StreetNameIdenticalLevel.EXACTLY);
+						evaluation.setStreetnameIdenticalLevel(StreetNameIdenticalLevel.EXACTLY);
 					evaluation.setCountry(rs_jobs.getString("countryname"));
+					evaluation.setCountryDbId(rs_jobs.getLong("country_id"));
 					evaluation.setMunicipality(rs_jobs.getString("name"));
 					evaluation.setOfficialkeysId(rs_jobs.getString("officialkeys_id"));
 					evaluation.setPolgonstate(rs_jobs.getString("polygon_state"));
 					if(		(rs_jobs.getString("parameterstreetref") != null) 
-						&& 	(! rs_jobs.getString("parameterstreetref").equals("")))
+						&& 	(! rs_jobs.getString("parameterstreetref").equals(""))) {
 						evaluation.setStreetrefMustBeUsedForIdenticaly(rs_jobs.getString("parameterstreetref"));
-					else
+						evaluation.setfieldsForUniqueStreet(FieldsForUniqueStreet.STREET_REF);
+					} else {
 						evaluation.unsetStreetrefMustBeUsedForIdenticaly();
+						evaluation.setfieldsForUniqueStreet(FieldsForUniqueStreet.STREET);
+					}
 					evaluation.setPolgonstate(rs_jobs.getString("polygon_state"));
-						
-					osmstreets = 
-					
-						
-						// ------------------------------------------------------------------------------
-							// 1. Action - get all street from osm table   PLANET_LINE   within boundary-polygon
-										// DISTINCT ON (tags->'name')
-
-						sqlbefehl_objekte = "SELECT";
-						for(Integer nameindex = 0; nameindex < keyvariation_namelist.length; nameindex++) {
-							String act_name = keyvariation_namelist[nameindex];
-							sqlbefehl_objekte += " tags->'"+act_name+"' AS "+act_name+",";
-						}
-						sqlbefehl_objekte += " osm_id AS id, highway AS highwaytype, ST_AsText(ST_Transform(ST_Centroid(way),4326)) AS linecenterpoint";
-						if(! akt_parameterstreetref.equals(""))
-							sqlbefehl_objekte += ", tags->'" + akt_parameterstreetref + "' AS streetref";
-						else
-							sqlbefehl_objekte += ", null AS streetref";
-						sqlbefehl_objekte += " FROM planet_line WHERE"
-							+ " (ST_Covers('"+akt_gebietsgeometrie+"', way) OR"	// ST_Covers = complete inside
-							+ " ST_Crosses('"+akt_gebietsgeometrie+"', way)) AND"  // ST_Crosses = some, but not all, common
-							+ " tags ? 'highway'";
-						for(Integer nameindex = 0; nameindex < keyvariation_namelist.length; nameindex++) {
-							String act_name = keyvariation_namelist[nameindex];
-							if(nameindex == 0)
-								sqlbefehl_objekte += " AND (";
-							sqlbefehl_objekte += " tags ? '"+act_name+"'";
-							if(nameindex == (keyvariation_namelist.length -1))
-								sqlbefehl_objekte += ")";
-							else
-								sqlbefehl_objekte += " OR";
-						}
-						sqlbefehl_objekte += " ORDER BY tags->'name';";
-
-						logger.log(Level.FINEST, "sqlbefehl_objekte (osm ways) ==="+sqlbefehl_objekte+"===");
-						stmt_objekte = con_mapnik.createStatement();
-
-						try {
-							java.util.Date local_query_start = new java.util.Date();
-
-							rs_objekte = stmt_objekte.executeQuery( sqlbefehl_objekte );
-
-							java.util.Date local_query_end = new java.util.Date();
-							logger.log(Level.FINEST, "TIME single-step quer osm-ways in ms. "+(local_query_end.getTime()-local_query_start.getTime()));
-
-						}
-						catch( SQLException sqlerror) {
-							logger.log(Level.INFO, "ERROR: SQL-Exception during 1. Action - get all street from osm, sql-statement was ==="+sqlbefehl_objekte+"=== municipality   id==="+rs_jobs.getString("id")+"===  name ==="+rs_jobs.getString("name")+"==="); 
-							logger.log(Level.INFO, sqlerror.toString());
-							System.out.println("ERROR: SQL-Exception during 1. Action - get all street from osm, sql-statement was ==="+sqlbefehl_objekte+"=== municipality   id==="+rs_jobs.getString("id")+"===  name ==="+rs_jobs.getString("name")+"===");
-							System.out.println(sqlerror.toString());
-							continue;
-						}
-						while( rs_objekte.next() ) {
-							anzahl_datensaetze_osmstreets++;
-								// get name of object
-							String temp_aktstrasse = "";
-							String act_name = "";
-							for(Integer nameindex = 0; nameindex < keyvariation_namelist.length; nameindex++) {
-								act_name = keyvariation_namelist[nameindex];
-								if( rs_objekte.getString(act_name) != null) {
-									temp_aktstrasse = rs_objekte.getString(act_name);
-									if (!act_name.equals("name")) {
-										logger.log(Level.FINER, "Ausgabe OSM-Straße Name-Variation (" + act_name + ") ==="+temp_aktstrasse +"===");
-									}
-								}
-							}
-							logger.log(Level.FINER, "OSM-Straße ==="+temp_aktstrasse +"===    osm-id ==="+rs_objekte.getString("id")+"===");
-							String local_osm_validkeyvalue = "";
-								// check for all possible values, optionally separated by ;
-							String[] local_keyvalue = rs_objekte.getString("highwaytype").split(";");
-							for(Integer local_keyvaluei=0;local_keyvaluei<local_keyvalue.length;local_keyvaluei++) {
-								if( local_keyvalue[local_keyvaluei].equals("trunk") || 
-									local_keyvalue[local_keyvaluei].equals("trunk_link") || 
-									local_keyvalue[local_keyvaluei].equals("primary") || 
-									local_keyvalue[local_keyvaluei].equals("primary_link") || 
-									local_keyvalue[local_keyvaluei].equals("secondary") || 
-									local_keyvalue[local_keyvaluei].equals("secondary_link") || 
-									local_keyvalue[local_keyvaluei].equals("tertiary") || 
-									local_keyvalue[local_keyvaluei].equals("tertiary_link") || 
-									local_keyvalue[local_keyvaluei].equals("unclassified") || 
-									local_keyvalue[local_keyvaluei].equals("living_street") || 
-									local_keyvalue[local_keyvaluei].equals("pedestrian") || 
-									local_keyvalue[local_keyvaluei].equals("construction") || 
-									local_keyvalue[local_keyvaluei].equals("service") || 
-									local_keyvalue[local_keyvaluei].equals("road") || 
-									local_keyvalue[local_keyvaluei].equals("track") || 
-									local_keyvalue[local_keyvaluei].equals("path") || 
-									local_keyvalue[local_keyvaluei].equals("cycleway") || 
-									local_keyvalue[local_keyvaluei].equals("steps") || 
-									local_keyvalue[local_keyvaluei].equals("footway") || 
-									local_keyvalue[local_keyvaluei].equals("residential") ||
-									local_keyvalue[local_keyvaluei].equals("proposed")
-									) {
-										if( ! local_osm_validkeyvalue.equals(""))
-											local_osm_validkeyvalue += ";" + local_keyvalue[local_keyvaluei];
-										else
-											local_osm_validkeyvalue = "highway=" + local_keyvalue[local_keyvaluei];
-								} else if(	local_keyvalue[local_keyvaluei].equals("platform") || 
-											local_keyvalue[local_keyvaluei].equals("bridleway") || 
-											local_keyvalue[local_keyvaluei].equals("raceway") ||
-											local_keyvalue[local_keyvaluei].equals("bus_stop") ||  
-											local_keyvalue[local_keyvaluei].equals("rest_area")
-										) {
-									logger.log(Level.FINEST, " Info: ignore highway="+local_keyvalue[local_keyvaluei]+"  highway-name ==="+temp_aktstrasse+"===");
-								} else {
-									logger.log(Level.FINE, " 1. Action highway unexpected value, please check ==="+local_keyvalue[local_keyvaluei]+"===   street name ==="+temp_aktstrasse+"===  osm-id ==="+rs_objekte.getString("id")+"===");
-								}
-							}
-
-							if( ! local_osm_validkeyvalue.equals("")) {
-								String temp_linecenterpoint = rs_objekte.getString("linecenterpoint");
-								String temp_point_source = "";
-								if( ! temp_linecenterpoint.equals(""))
-									temp_point_source = "OSM";
-								Street new_street =  new Street("osm", "way", local_osm_validkeyvalue, rs_objekte.getLong("id"), 
-										temp_aktstrasse, rs_objekte.getString("streetref"), temp_linecenterpoint, temp_point_source);
-								new_street = new_street.aktualisieren(streetobjects,streetobjects_anzahl, "osm", "way", local_osm_validkeyvalue, rs_objekte.getLong("id"), 
-													temp_aktstrasse, rs_objekte.getString("streetref"), temp_linecenterpoint, temp_point_source);
-								if(new_street.aktion.equals("fehlt")) {
-									new_street = new_street.ergaenzen(streetobjects,streetobjects_anzahl, "osm", "way", local_osm_validkeyvalue, rs_objekte.getLong("id"), 
-													temp_aktstrasse, rs_objekte.getString("streetref"), temp_linecenterpoint, temp_point_source);
-									if(new_street.aktion.equals("neu")) {
-										streetobjects[streetobjects_anzahl] = new_street;
-										streetobjects_anzahl++;
-									}
-								}
-							}
-						}
-
-						time_now = new java.util.Date();
-						logger.log(Level.FINEST, "TIME all in ms. (get all streets in polygon) since actual municipality "+(time_now.getTime()-time_act_municipality_starttime.getTime())+"  since last step: "+(time_now.getTime()-time_last_step.getTime()));
-						time_last_step = time_now;
-
-						
-							// ------------------------------------------------------------------------------
-							// 1a. Action - get all street from osm table   PLANET_POLYGON   (so only closed ways) within boundary-polygon
-
-						sqlbefehl_objekte = "SELECT ";
-						for(Integer nameindex = 0; nameindex < keyvariation_namelist.length; nameindex++) {
-							String act_name = keyvariation_namelist[nameindex];
-							sqlbefehl_objekte += " tags->'"+act_name+"' AS "+act_name+",";
-						}
-						sqlbefehl_objekte += " osm_id AS id, highway as highwaytype, tags->'place' as place,";
-						sqlbefehl_objekte += " ST_AsText(ST_Transform(ST_Centroid(way),4326)) as linecenterpoint";
-						if(! akt_parameterstreetref.equals(""))
-							sqlbefehl_objekte += ", tags->'" + akt_parameterstreetref + "' AS streetref";
-						else
-							sqlbefehl_objekte += ", null AS streetref";
-						sqlbefehl_objekte += " FROM planet_polygon";
-						sqlbefehl_objekte += " WHERE ST_Covers('"+akt_gebietsgeometrie+"', way) AND";		//ST_Centroid(way) seems to take too long
-						sqlbefehl_objekte += " (highway != '' OR place != '')";
-						for(Integer nameindex = 0; nameindex < keyvariation_namelist.length; nameindex++) {
-							String act_name = keyvariation_namelist[nameindex];
-							if(nameindex == 0)
-								sqlbefehl_objekte += " AND (";
-							sqlbefehl_objekte += " tags ? '"+act_name+"'";
-							if(nameindex == (keyvariation_namelist.length -1))
-								sqlbefehl_objekte += ")";
-							else
-								sqlbefehl_objekte += " OR";
-						}
-						sqlbefehl_objekte += " ORDER BY name;";
-
-						logger.log(Level.FINEST, "sqlbefehl_objekte (osm closed ways) ==="+sqlbefehl_objekte+"===");
-						stmt_objekte = con_mapnik.createStatement();
-
-						try {
-							java.util.Date local_query_start = new java.util.Date();
-
-							rs_objekte = stmt_objekte.executeQuery( sqlbefehl_objekte );
-
-							java.util.Date local_query_end = new java.util.Date();
-							logger.log(Level.FINEST, "TIME single-step closed osm-ways in ms. "+(local_query_end.getTime()-local_query_start.getTime()));
-						}
-						catch( SQLException sqlerror) {
-							logger.log(Level.INFO, "ERROR: SQL-Exception during 1a. Action - get all closed way streets from osm, sql-statement was ==="+sqlbefehl_objekte+"=== municipality   id==="+rs_jobs.getString("id")+"===  name ==="+rs_jobs.getString("name")+"==="); 
-							logger.log(Level.INFO, sqlerror.toString());
-							System.out.println("ERROR: SQL-Exception during 1a. Action - get all closed way streets from osm, sql-statement was ==="+sqlbefehl_objekte+"=== municipality   id==="+rs_jobs.getString("id")+"===  name ==="+rs_jobs.getString("name")+"===");
-							System.out.println(sqlerror.toString());
-							continue;
-						}
-						while( rs_objekte.next() ) {
-							String local_osm_validkeyvalue = "";
-
-								// get name of object
-							String temp_aktstrasse = "";
-							String act_name = "";
-							for(Integer nameindex = 0; nameindex < keyvariation_namelist.length; nameindex++) {
-								act_name = keyvariation_namelist[nameindex];
-								if( rs_objekte.getString(act_name) != null) {
-									temp_aktstrasse = rs_objekte.getString(act_name);
-									if (!act_name.equals("name")) {
-										logger.log(Level.FINER, "Ausgabe OSM-Straße Name-Variation (" + act_name + ") ==="+temp_aktstrasse +"===");
-									}
-								}
-							}
-
-							if(rs_objekte.getString("highwaytype") != null) {
-								anzahl_datensaetze_osmstreets++;
-	
-									// check for all possible values, optionally separated by ;
-								String[] local_keyvalue = rs_objekte.getString("highwaytype").split(";");
-								for(Integer local_keyvaluei=0;local_keyvaluei<local_keyvalue.length;local_keyvaluei++) {
-									if( local_keyvalue[local_keyvaluei].equals("trunk") || 
-										local_keyvalue[local_keyvaluei].equals("trunk_link") || 
-										local_keyvalue[local_keyvaluei].equals("primary") || 
-										local_keyvalue[local_keyvaluei].equals("primary_link") || 
-										local_keyvalue[local_keyvaluei].equals("secondary") || 
-										local_keyvalue[local_keyvaluei].equals("secondary_link") || 
-										local_keyvalue[local_keyvaluei].equals("tertiary") || 
-										local_keyvalue[local_keyvaluei].equals("tertiary_link") || 
-										local_keyvalue[local_keyvaluei].equals("unclassified") || 
-										local_keyvalue[local_keyvaluei].equals("living_street") || 
-										local_keyvalue[local_keyvaluei].equals("pedestrian") || 
-										local_keyvalue[local_keyvaluei].equals("construction") || 
-										local_keyvalue[local_keyvaluei].equals("service") || 
-										local_keyvalue[local_keyvaluei].equals("road") || 
-										local_keyvalue[local_keyvaluei].equals("track") || 
-										local_keyvalue[local_keyvaluei].equals("path") || 
-										local_keyvalue[local_keyvaluei].equals("cycleway") || 
-										local_keyvalue[local_keyvaluei].equals("steps") || 
-										local_keyvalue[local_keyvaluei].equals("footway") || 
-										local_keyvalue[local_keyvaluei].equals("residential") ||
-										local_keyvalue[local_keyvaluei].equals("proposed")
-										) {
-											if( ! local_osm_validkeyvalue.equals(""))
-												local_osm_validkeyvalue += ";" + local_keyvalue[local_keyvaluei];
-											else
-												local_osm_validkeyvalue = "highway=" + local_keyvalue[local_keyvaluei];
-											//System.out.println(" 1. Action Treffer highway ==="+local_keyvalue[local_keyvaluei]+"===   name ==="+temp_aktstrasse+"===");
-									} else if	(	local_keyvalue[local_keyvaluei].equals("platform") || 
-													local_keyvalue[local_keyvaluei].equals("bridleway") || 
-													local_keyvalue[local_keyvaluei].equals("raceway") || 
-													local_keyvalue[local_keyvaluei].equals("bus_stop") ||  
-													local_keyvalue[local_keyvaluei].equals("rest_area")
-														) {
-										logger.log(Level.FINEST, " Info: ignore highway="+local_keyvalue[local_keyvaluei]+"  highway-name ==="+temp_aktstrasse+"===");
-									} else {
-										logger.log(Level.FINE, " 1. Action highway unexpected value, please check ==="+local_keyvalue[local_keyvaluei]+"===   name ==="+temp_aktstrasse+"===");
-									}
-								}
-							}  // end of type highway
-							if(rs_objekte.getString("place") != null) {
-								anzahl_datensaetze_osmplaces++;
-								logger.log(Level.FINER, "OSM-Placename ==="+act_name+"===   place-value ==="+rs_objekte.getString("place")+"===   osm-id ==="+rs_objekte.getString("id")+"===");
-									// check for all possible values, optionally separated by ;
-								String[] local_keyvalue = rs_objekte.getString("place").split(";");
-								for(Integer local_keyvaluei=0;local_keyvaluei<local_keyvalue.length;local_keyvaluei++) {
-									if(	local_keyvalue[local_keyvaluei] == null) {
-										logger.log(Level.WARNING, "Warning: ignorierung record with null- place-Tag");
-										continue;
-									}
-
-									if(	local_keyvalue[local_keyvaluei].equals("hamlet") 
-										||	local_keyvalue[local_keyvaluei].equals("village")					//moved from ignore to active at 2013-02-26
-										|| local_keyvalue[local_keyvaluei].equals("isolated_dwelling")
-										|| local_keyvalue[local_keyvaluei].equals("neighbourhood")				//moved from ignore to active at 2014-01-27 for Mannheim
-										|| local_keyvalue[local_keyvaluei].equals("suburb")						//moved from ignore to actige at 2014-01-07
-										|| local_keyvalue[local_keyvaluei].equals("locality")					//new evaluate at 2011-12-01
-										|| local_keyvalue[local_keyvaluei].equals("farm") 						//new evaluate at 2014-02-15
-										) {
-											if( ! local_osm_validkeyvalue.equals(""))
-												local_osm_validkeyvalue += ";" + local_keyvalue[local_keyvaluei];
-											else
-												local_osm_validkeyvalue = "place=" + local_keyvalue[local_keyvaluei];
-									} else if(	local_keyvalue[local_keyvaluei].equals("state") ||
-												local_keyvalue[local_keyvaluei].equals("region") ||
-												local_keyvalue[local_keyvaluei].equals("county") || 
-												local_keyvalue[local_keyvaluei].equals("municipality") || 
-												local_keyvalue[local_keyvaluei].equals("town") || 
-												local_keyvalue[local_keyvaluei].equals("city") ||  
-												local_keyvalue[local_keyvaluei].equals("quarter") ||
-												local_keyvalue[local_keyvaluei].equals("island") || 
-												local_keyvalue[local_keyvaluei].equals("islet")
-												) {
-										logger.log(Level.FINEST, " Info: ignore place ="+local_keyvalue[local_keyvaluei]+"  place-name ==="+temp_aktstrasse+"===");
-									} else {
-										logger.log(Level.FINE, "Info: unexcpeted value for place ="+local_keyvalue[local_keyvaluei]+"  place-name ==="+temp_aktstrasse+"===");
-									}
-								}
-							}	// end of type place	
-
-							if( ! local_osm_validkeyvalue.equals("")) {
-								logger.log(Level.FINEST, " found interesting place-object with name, osm-keyvalues ===" + local_osm_validkeyvalue + "===");
-								String temp_linecenterpoint = rs_objekte.getString("linecenterpoint");
-								String temp_point_source = "";
-								if( ! temp_linecenterpoint.equals(""))
-									temp_point_source = "OSM";
-								StreetObject new_street =  new StreetObject();
-								new_street = new_street.aktualisieren(streetobjects,streetobjects_anzahl, "osm", "way", local_osm_validkeyvalue, rs_objekte.getLong("id"), 
-													temp_aktstrasse, rs_objekte.getString("streetref"), temp_linecenterpoint, temp_point_source);
-								if(new_street.aktion.equals("fehlt")) {
-									new_street = new_street.ergaenzen(streetobjects,streetobjects_anzahl, "osm", "way", local_osm_validkeyvalue, rs_objekte.getLong("id"), 
-													temp_aktstrasse, rs_objekte.getString("streetref"), temp_linecenterpoint, temp_point_source);
-									if(new_street.aktion.equals("neu")) {
-										streetobjects[streetobjects_anzahl] = new_street;
-										streetobjects_anzahl++;
-									}
-								}
-							}
-						}
-
-						time_now = new java.util.Date();
-						logger.log(Level.FINEST, "TIME all in ms. (get all closed osm streets in polygon) since actual municipality "+(time_now.getTime()-time_act_municipality_starttime.getTime())+"  since last step: "+(time_now.getTime()-time_last_step.getTime()));
-						time_last_step = time_now;
+					evaluation.setmunicipalityDbId(rs_jobs.getLong("id"));
+					evaluation.setMunitipalityGeometryBinaryString(rs_jobs.getString("polygon"));
+					evaluation.setOsmdbTimestamp(time_osmdb);
+					evaluation.setEvaluationTimestamp(time_evaluation);
+					evaluation.setEvaluationTypeFull(evaluationTypeFull);
+					evaluation.setEvaluationText(evaluationText);
 
 
+					osmstreets = osmreader.ReadDataFromDB(evaluation);
+					//liststreets = listreader.ReadListFromDB(evaluation);
+					//evaluatedstreets = liststreets.merge(osmstreets);
 
-							// ------------------------------------------------------------------------------
-							// 2. Action - get place-objects with some values from osm table nodes
-							//  active values should be     							hamlet, isolated_dwelling
-							//  to ignore values should be    						..., 
-							//  false set values, so should be active:  	locality
-							//  unsure																		village  town
+					listreader.setExistingStreetlist(osmstreets);
+					mergedstreets = listreader.ReadListFromDB(evaluation);
 
-						sqlbefehl_objekte = "SELECT";
-						for(Integer nameindex = 0; nameindex < keyvariation_namelist.length; nameindex++) {
-							String act_name = keyvariation_namelist[nameindex];
-							sqlbefehl_objekte += " tags->'"+act_name+"' AS "+act_name+",";
-						}
-						sqlbefehl_objekte += " osm_id as id, tags->'place' as place, ST_AsText(ST_Transform(way,4326)) as point";
-						if(! akt_parameterstreetref.equals(""))
-							sqlbefehl_objekte += ", tags->'" + akt_parameterstreetref + "' AS streetref";
-						else
-							sqlbefehl_objekte += ", null AS streetref";
-						sqlbefehl_objekte += " FROM planet_point";
-						sqlbefehl_objekte += " WHERE ST_Covers('"+akt_gebietsgeometrie+"',way) AND";
-						sqlbefehl_objekte += " (tags ? 'place')";
-						for(Integer nameindex = 0; nameindex < keyvariation_namelist.length; nameindex++) {
-							String act_name = keyvariation_namelist[nameindex];
-							if(nameindex == 0)
-								sqlbefehl_objekte += " AND (";
-							sqlbefehl_objekte += " tags ? '"+act_name+"'";
-							if(nameindex == (keyvariation_namelist.length -1))
-								sqlbefehl_objekte += ")";
-							else
-								sqlbefehl_objekte += " OR";
-						}
-						sqlbefehl_objekte += " ORDER BY name;";
+					evaluation.storeEvaluation(mergedstreets);
 
-						logger.log(Level.FINEST, "sqlbefehl_objekte (places from osm nodes) ==="+sqlbefehl_objekte+"===");
-						stmt_objekte = con_mapnik.createStatement();
-						rs_objekte = stmt_objekte.executeQuery( sqlbefehl_objekte );
-						while( rs_objekte.next() ) {
-							anzahl_datensaetze_osmplaces++;
-	
-								// get name of object
-							String temp_aktstrasse = "";
-							String act_name = "";
-							for(Integer nameindex = 0; nameindex < keyvariation_namelist.length; nameindex++) {
-								act_name = keyvariation_namelist[nameindex];
-								if( rs_objekte.getString(act_name) != null) {
-									temp_aktstrasse = rs_objekte.getString(act_name);
-									if (!act_name.equals("name")) {
-										logger.log(Level.FINER, "Ausgabe OSM-Straße Name-Variation (" + act_name + ") ==="+temp_aktstrasse +"===");
-									}
-								}
-							}
-							logger.log(Level.FINER, "OSM-Placename ==="+temp_aktstrasse+"===   place-value ==="+rs_objekte.getString("place")+"===   osm-id ==="+rs_objekte.getString("id")+"===");
-							String temp_point = rs_objekte.getString("point");
-							String temp_point_source = "";
-							String local_osm_validkeyvalue = "";
-								// check for all possible values, optionally separated by ;
-							String[] local_keyvalue = rs_objekte.getString("place").split(";");
-							for(Integer local_keyvaluei=0;local_keyvaluei<local_keyvalue.length;local_keyvaluei++) {
-								if(	local_keyvalue[local_keyvaluei] == null) {
-									logger.log(Level.WARNING, "Warning: ignorierung record with null- place-Tag");
-									continue;
-								}
-								
-								if(	local_keyvalue[local_keyvaluei].equals("hamlet") 
-										|| local_keyvalue[local_keyvaluei].equals("village")				//moved from ignore to active at 2013-02-26
-										|| local_keyvalue[local_keyvaluei].equals("isolated_dwelling")
-										|| local_keyvalue[local_keyvaluei].equals("neighbourhood")			//moved from ignore to active at 2014-01-27 for Mannheim
-										|| local_keyvalue[local_keyvaluei].equals("suburb")					//moved from ignore to actige at 2014-01-07
-										|| local_keyvalue[local_keyvaluei].equals("locality")				//new evaluate at 2011-12-01
-										|| local_keyvalue[local_keyvaluei].equals("farm") 					//new evaluate at 2014-02-15
-										) {
-									if( ! local_osm_validkeyvalue.equals(""))
-										local_osm_validkeyvalue += ";" + local_keyvalue[local_keyvaluei];
-									else
-										local_osm_validkeyvalue = "place=" + local_keyvalue[local_keyvaluei];
-								} else if(	local_keyvalue[local_keyvaluei].equals("state") ||
-											local_keyvalue[local_keyvaluei].equals("region") ||
-											local_keyvalue[local_keyvaluei].equals("county") || 
-											local_keyvalue[local_keyvaluei].equals("municipality") || 
-											local_keyvalue[local_keyvaluei].equals("town") || 
-											local_keyvalue[local_keyvaluei].equals("city") ||  
-											local_keyvalue[local_keyvaluei].equals("quarter") ||
-											local_keyvalue[local_keyvaluei].equals("island") || 
-											local_keyvalue[local_keyvaluei].equals("islet")
-										) {
-									logger.log(Level.FINEST, " Info: ignore place ="+local_keyvalue[local_keyvaluei]+"  place-name ==="+temp_aktstrasse+"===");
-								} else {
-									logger.log(Level.WARNING, " Info: unexcpeted value for place ="+local_keyvalue[local_keyvaluei]+"  place-name ==="+temp_aktstrasse+"===");
-								}
-							}
-
-							if( ! local_osm_validkeyvalue.equals("")) {
-								logger.log(Level.FINEST, " found interesting place-object with name, osm-keyvalues ===" + local_osm_validkeyvalue + "===");
-								if( ! temp_point.equals("")) {
-									temp_point_source = "OSM";
-								}
-								StreetObject new_street =  new StreetObject();
-								new_street = new_street.aktualisieren(streetobjects,streetobjects_anzahl, "osm", "node", local_osm_validkeyvalue, rs_objekte.getLong("id"), 
-													temp_aktstrasse, rs_objekte.getString("streetref"), temp_point, temp_point_source);
-								if(new_street.aktion.equals("fehlt")) {
-									new_street = new_street.ergaenzen(streetobjects,streetobjects_anzahl, "osm", "node", local_osm_validkeyvalue, rs_objekte.getLong("id"), 
-													temp_aktstrasse, rs_objekte.getString("streetref"), temp_point, temp_point_source);
-									if(new_street.aktion.equals("neu")) {
-										streetobjects[streetobjects_anzahl] = new_street;
-										streetobjects_anzahl++;
-									}
-								}
-							}
-						}
-
-						time_now = new java.util.Date();
-						logger.log(Level.FINEST, "TIME all in ms. (get place-objects from nodes) since actual municipality "+(time_now.getTime()-time_act_municipality_starttime.getTime())+"  since last step: "+(time_now.getTime()-time_last_step.getTime()));
-						time_last_step = time_now;
-
-							// ------------------------------------------------------------------------------
-							// 3. Action - get all street from street list
-							// eigentlich als extra Lauf überflüssig, weil weiter unten die nur-Soll-Liste eigenständig erstellt wird
-						//produktiv bis 03.03.2013, jetzt werden die Spalten point_state und point_source nicht mehr gesetzt, weil Tabelle evalation_street die Daten haelt - sqlbefehl_objekte = "SELECT DISTINCT ON (name) name, id, ST_AsText(point) AS point, point_state, point_source ";
-						sqlbefehl_objekte = "SELECT DISTINCT ON (name) name, id, ST_AsText(point) AS point, point_source, streetref";
-						sqlbefehl_objekte += " FROM street";
-						sqlbefehl_objekte += " WHERE municipality_id = "+akt_municipality_id;
-						sqlbefehl_objekte += " ORDER BY name;";
-						logger.log(Level.FINEST, "sqlbefehl_objekte ==="+sqlbefehl_objekte+"===");
-						stmt_objekte = con_listofstreets.createStatement();
-						rs_objekte = stmt_objekte.executeQuery( sqlbefehl_objekte );
-						while( rs_objekte.next() ) {
-							anzahl_datensaetze_sollliste++;
-							String temp_aktstrasse = rs_objekte.getString("name");
-							logger.log(Level.FINER, "Soll-Straße ==="+temp_aktstrasse +"===    point_source==="+rs_objekte.getString("point_source")+"===");
-							try {
-								String temp_linecenterpoint = "";
-								String temp_point_source = "";
-								StreetObject new_street =  new StreetObject();
-								new_street = new_street.aktualisieren(streetobjects,streetobjects_anzahl, "street", "", "", rs_objekte.getLong("id"), 
-													rs_objekte.getString("name"), rs_objekte.getString("streetref"), temp_linecenterpoint, temp_point_source);
-								if(new_street.aktion.equals("fehlt")) {
-									new_street = new_street.ergaenzen(streetobjects,streetobjects_anzahl, "street", "", "", rs_objekte.getLong("id"), 
-													rs_objekte.getString("name"), rs_objekte.getString("streetref"), temp_linecenterpoint, temp_point_source);
-									if(new_street.aktion.equals("neu")) {
-										streetobjects[streetobjects_anzahl] = new_street;
-										streetobjects_anzahl++;
-									}
-								}
-							} catch (NullPointerException nullerror) {
-								logger.log(Level.WARNING, "NullpointerException happened at municipality_id ==="+akt_municipality_id+"=== ...");
-							}
-						}
-
-						time_now = new java.util.Date();
-						logger.log(Level.FINEST, "TIME all in ms. (get all streets from list) since actual municipality "+(time_now.getTime()-time_act_municipality_starttime.getTime())+"  since last step: "+(time_now.getTime()-time_last_step.getTime()));
-						time_last_step = time_now;
-		
-
-						logger.log(Level.FINEST, " sorting starts ...");
-						java.util.Date time_sort_startedtime = new java.util.Date();
-						StreetObject.sort(streetobjects, streetobjects_anzahl);
-						java.util.Date time_sort_endedtime = new java.util.Date();
-						logger.log(Level.FINEST, " sorting ended");
-						logger.log(Level.FINEST, "sort: Duration in ms: "+(time_sort_endedtime.getTime()-time_sort_startedtime.getTime()));
-	
-						time_now = new java.util.Date();
-						logger.log(Level.FINEST, "TIME all in ms. (sorting all streets) since actual municipality "+(time_now.getTime()-time_act_municipality_starttime.getTime())+"  since last step: "+(time_now.getTime()-time_last_step.getTime()));
-						time_last_step = time_now;
-
-						String insert_evaluationstreet = "INSERT INTO evaluation_street (evaluation_id,street_id,name,osm_id,osm_type,osm_keyvalue) ";
-						insert_evaluationstreet += "VALUES (?, ?, ?, ?, ?, ?);";
-						logger.log(Level.FINEST, "insert sql for evaluation_street row ==="+insert_evaluationstreet+"===");
-						
-						
-							// to enable transaction mode, disable auto-transation mode for every db-action
-						con_listofstreets.setAutoCommit(false);
-						
-						Integer strassen_soll_anzahl = 0;
-						Integer strassen_ist_anzahl = 0;
-						Integer strassen_osm_single = 0;
-						Integer strassen_osm_missing_local = 0;
-	
-						time_now = new java.util.Date();
-						java.util.Date time_startloop = new java.util.Date();
-						java.util.Date time_last_loopstep = new java.util.Date();
-						logger.log(Level.FINEST, "TIME all in ms. (loop objectstreet ) since loop-start "+(time_now.getTime()-time_startloop.getTime())+"  since last step: "+(time_now.getTime()-time_last_loopstep.getTime()));
-						time_last_loopstep = time_now;
-	
-							// store first part of municipality result in evaluation table, without street-numbers (happens below aber loop over all streets)
-							// here we need the row-id for storing all street detail in street-loop
-						Integer evaluation_id = -1;
-						String insertbefehl_evalation = "INSERT INTO evaluation (country_id, municipality_id, evaluation_overview_id, ";
-						insertbefehl_evalation += "number_liststreets, number_osmstreets, number_osmsinglestreets,number_missingstreets,tstamp, osmdb_tstamp) ";
-						insertbefehl_evalation += "VALUES ("+rs_jobs.getLong("country_id")+","+rs_jobs.getLong("id")+"," + evaluation_overview_id + ", 0, 0, 0, 0,";
-						insertbefehl_evalation += "'" + time_formatter_iso8601.format(time_evalation) + "'" + ",";
-						insertbefehl_evalation += "'" + time_formatter_iso8601.format(time_osmdb) + "'" + ");";
-						logger.log(Level.FINEST, "insertbefehl_evalation ==="+insertbefehl_evalation+"===");
-						Statement stmt_insertevalation = con_listofstreets.createStatement();
-						String[] dbautogenkeys = { "id" };
-						try {
-							stmt_insertevalation.executeUpdate( insertbefehl_evalation, dbautogenkeys );
-
-							ResultSet rs_getautogenkeys = stmt_insertevalation.getGeneratedKeys();
-						    while (rs_getautogenkeys.next()) {
-						    	logger.log(Level.FINEST, "Key returned from getGeneratedKeys():"
-						            + rs_getautogenkeys.getInt(1));
-						        evaluation_id = rs_getautogenkeys.getInt("id");
-						    } 
-						    rs_getautogenkeys.close();
-						}
-						catch( SQLException e) {
-							logger.log(Level.INFO, "ERROR: during insert in table evaluation, insert code was ==="+insertbefehl_evalation+"==="); 
-							logger.log(Level.INFO, e.toString()); 
-							System.out.println("ERROR: during insert in table evaluation, insert code was ==="+insertbefehl_evalation+"===");
-							System.out.println(e.toString());
-						}
-						
-						
-						
-							// ======================================================================================
-							//   all street collected in an array structure.
-							//		Now, loop over all streets and build the html-file and store the results on every single street level into table evaluation_streets
-							// ======================================================================================
-
-
-						for( int streeti=0;streeti<streetobjects_anzahl;streeti++) {
-	
-							StreetObject activestreet = streetobjects[streeti];
-
-							Integer local_street_id = -1;
-							
-							if( ! activestreet.street_id.equals("")) {
-								if(activestreet.street_id.indexOf(",") != -1) {
-									System.out.println("WARNING: more than one street row found, take only first one ==="
-										+ activestreet.street_id.substring(0,activestreet.street_id.indexOf(","))+"=== from list ==="+activestreet.street_id+"===");
-									local_street_id = Integer.parseInt(activestreet.street_id.substring(0,activestreet.street_id.indexOf(",")));
-								} else {
-									local_street_id = Integer.parseInt(activestreet.street_id);
-								}
-							}
-							String local_street_name = activestreet.name;
-							if(local_street_name.indexOf("'") != -1) {
-								local_street_name = local_street_name.replace("'","''");
-								logger.log(Level.FINER, "actual street name contains hochkomma ===" + activestreet.name + "===, was changed for insert into evaluation_street to ==="+local_street_name+"===");
-							}
-
-							time_detail_start  = new java.util.Date();
-								// first, store actual street in evaluation_street table
-
-							
-							PreparedStatement insertevaluationstreetStmt = con_listofstreets.prepareStatement(insert_evaluationstreet);
-							insertevaluationstreetStmt.setLong(1, evaluation_id);
-							insertevaluationstreetStmt.setLong(2, local_street_id);
-							insertevaluationstreetStmt.setString(3, local_street_name);
-							insertevaluationstreetStmt.setString(4, activestreet.osm_id);
-							insertevaluationstreetStmt.setString(5, activestreet.osm_type);
-							insertevaluationstreetStmt.setString(6, activestreet.osm_objectkeyvalue);
-							logger.log(Level.FINE,"parameter 1                   evaluation_id ===" + evaluation_id + "===");
-							logger.log(Level.FINE,"parameter 2                 local_street_id ===" + local_street_id + "===");
-							logger.log(Level.FINE,"parameter 3               local_street_name ===" + local_street_name + "===");
-							logger.log(Level.FINE,"parameter 4             activestreet.osm_id ===" + activestreet.osm_id + "===");
-							logger.log(Level.FINE,"parameter 5           activestreet.osm_type ===" + activestreet.osm_type + "===");
-							logger.log(Level.FINE,"parameter 6 activestreet.osm_objectkeyvalue ===" + activestreet.osm_objectkeyvalue + "===");
-							try {
-								insertevaluationstreetStmt.execute();
-							}
-							catch( SQLException e) {
-								logger.log(Level.INFO, "ERROR: during insert in table evaluation, insert code was ==="+insert_evaluationstreet+"===");
-								logger.log(Level.INFO, e.toString());
-								System.out.println("ERROR: during insert in table evaluation, insert code was ==="+insert_evaluationstreet+"===");
-								System.out.println(e.toString());
-							}
-							time_detail_end  = new java.util.Date();
-							logger.log(Level.FINEST, "TIME single step sql INSERT INTO evaluation_street in ms. "+(time_detail_end.getTime()-time_detail_start.getTime()));
-							
-							time_detail_start  = new java.util.Date();
-							
-							if(activestreet.osm_id.equals("")) {
-								strassen_soll_anzahl++;
-								anzahl_datensaetze_singlesoll++;
-							} else if(( ! activestreet.osm_id.equals("")) && (activestreet.street_id.equals(""))) {
-								if(	(activestreet.osm_objectkeyvalue != null) &&
-									( ! activestreet.osm_objectkeyvalue.equals("")) &&
-									(activestreet.osm_objectkeyvalue.indexOf("place=") == 0)) {		// place= nur-osm-Objekte nicht aufführen, weder in nur-osm-Zahl noch mit Namen
-								} else {
-									strassen_osm_single++;
-									anzahl_datensaetze_singleosm++;
-								}
-							} else if(( ! activestreet.osm_id.equals("")) && ( ! activestreet.street_id.equals(""))) {
-								strassen_soll_anzahl++;
-								strassen_ist_anzahl++;
-							}
-	
-							if(activestreet.osm_id.equals("")) {
-								strassen_osm_missing_local++;
-							} // end of at least one osm-id available, so got odbl-state of all  - if(activestreet.osm_id.equals("")) {
-						} // end of loop over all streets of actual municipality - for( int streeti=0;streeti<StreetObject.anzahl;streeti++) {
-
-						time_now = new java.util.Date();
-						logger.log(Level.FINEST, "TIME all in ms. (BEHIND loop objectstreet ) since loop-start "+(time_now.getTime()-time_startloop.getTime())+"  since last step: "+(time_now.getTime()-time_last_loopstep.getTime()));
-						time_last_loopstep = time_now;
-	
-						logger.log(Level.FINE, "jetzt die soll single zahlen: anzahl_datensaetze_singlesoll: "+anzahl_datensaetze_singlesoll+"   strassen_osm_missing_local: "+strassen_osm_missing_local);
-						logger.log(Level.FINE, "und die ist-anzahl osm: "+strassen_ist_anzahl);
-						anzahl_datensaetze_osmstreets = strassen_ist_anzahl;
-	
-						time_now = new java.util.Date();
-						logger.log(Level.FINEST, "TIME all in ms. (creating detail html file, only streets part) since actual municipality "+(time_now.getTime()-time_act_municipality_starttime.getTime())+"  since last step: "+(time_now.getTime()-time_last_step.getTime()));
-						time_last_step = time_now;
-	
-						String time_osmdb_string = "unbekannt";
-						if( time_osmdb_string != null) {
-							time_osmdb_string = time_formatter_mesz.format(time_osmdb);
-						}
-
-						
-						logger.log(Level.FINE, "Anzahl Strassentreffer in OSM: "+anzahl_datensaetze_osmstreets+"===");
-						logger.log(Level.FINE, "   Anzahl Placetreffer in OSM: "+anzahl_datensaetze_osmplaces+"===");
-						logger.log(Level.FINE, "   Anzahl Strassen Soll-Liste: "+anzahl_datensaetze_sollliste+"===");
-						logger.log(Level.FINE, "  Anzahl Strassen Soll Single: "+anzahl_datensaetze_singlesoll+"===");
-						logger.log(Level.FINE, "   Anzahl Strammen OSM Single: "+anzahl_datensaetze_singleosm+"===");
-	
-						time_now = new java.util.Date();
-						logger.log(Level.FINEST, "TIME all in ms. (rest of write detail html file) since actual municipality "+(time_now.getTime()-time_act_municipality_starttime.getTime())+"  since last step: "+(time_now.getTime()-time_last_step.getTime()));
-						time_last_step = time_now;
-
-
-						logger.log(Level.FINE, "evalution time in iso8601 format ==="+time_formatter_iso8601.format(time_evalation)+"===");
-	
-						String update_evaluation = "UPDATE evaluation set ";
-						update_evaluation += "number_liststreets = " + anzahl_datensaetze_sollliste;
-						update_evaluation += ",number_osmstreets = " + anzahl_datensaetze_osmstreets;
-						update_evaluation += ",number_missingstreets = " + anzahl_datensaetze_singlesoll;
-						update_evaluation += ",number_osmsinglestreets = " + anzahl_datensaetze_singleosm;
-						update_evaluation += " WHERE id = " + evaluation_id + ";";
-						logger.log(Level.FINE, "update_evaluation ==="+update_evaluation+"===");
-						Statement stmt_updateevaluation = con_listofstreets.createStatement();
-						try {
-							stmt_updateevaluation.executeUpdate( update_evaluation );
-						}
-						catch( SQLException e) {
-							logger.log(Level.INFO, "ERROR: during insert in table evaluation, insert code was ==="+update_evaluation+"===");
-							logger.log(Level.FINE, e.toString());
-							System.out.println("ERROR: during insert in table evaluation, insert code was ==="+update_evaluation+"===");
-							System.out.println(e.toString());
-						}
-
-							// transaction commit
-						con_listofstreets.commit();
-							// re-activate standard auto-transation mode for every db-action
-						con_listofstreets.setAutoCommit(true);
-						
-						time_now = new java.util.Date();
-						logger.log(Level.FINEST, "TIME all in ms. (end-of-actual-municipality entry to overview file) since actual municipality "+(time_now.getTime()-time_act_municipality_starttime.getTime())+"  since last step: "+(time_now.getTime()-time_last_step.getTime()));
-						time_last_step = time_now;
-						// else (polygon_state not ok and not old
-				} // end of loop if polygon is in useable (polygon_state ok or old)
-
-				logger.log(Level.FINE, "========================================================================================");
-
+					logger.log(Level.FINE, "========================================================================================");
+				}
 			}	// end of loop over all municiapalities
+			rs_jobs.close();
 
 			java.util.Date time_program_endedtime = new java.util.Date();
 			logger.log(Level.INFO, "Program: Ended Time: "+time_formatter_mesz.format(time_program_endedtime));
