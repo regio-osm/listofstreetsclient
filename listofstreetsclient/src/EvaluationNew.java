@@ -299,14 +299,22 @@ Integer evaluationOverviewId = -1;
 
 			
 			
-			String streetresultInsertSql = "INSERT INTO evaluation_street"
-				+ " (evaluation_id, street_id, name, streetref, osm_id, osm_type, osm_keyvalue)"
-					+ " VALUES (?, ?, ?, ?, ?, ?, ?);";
-			PreparedStatement streetresultInsertStmt = con_listofstreets.prepareStatement(streetresultInsertSql);
-			System.out.println("Insert street result string ===" + streetresultInsertSql + "===");
-			logger.log(Level.FINEST, "insert sql for evaluation_street row ===" + streetresultInsertSql + "===");
+			String streetresultwithGeomInsertSql = "INSERT INTO evaluation_street"
+				+ " (evaluation_id, street_id, name, streetref, osm_id, osm_type, osm_keyvalue, osm_point_leftbottom, osm_point_righttop)"
+				+ " VALUES (?, ?, ?, ?, ?, ?, ?, ST_Geomfromtext(?, 4326), ST_Geomfromtext(?, 4326));";
+			PreparedStatement streetresultwithGeomInsertStmt = con_listofstreets.prepareStatement(streetresultwithGeomInsertSql);
+			System.out.println("Insert street result withGeom string ===" + streetresultwithGeomInsertSql + "===");
+			logger.log(Level.FINEST, "insert sql for evaluation_street row withGeom ===" + streetresultwithGeomInsertSql + "===");
 
-				
+			String streetresultwithoutGeomInsertSql = "INSERT INTO evaluation_street"
+				+ " (evaluation_id, street_id, name, streetref, osm_id, osm_type, osm_keyvalue, osm_point_leftbottom, osm_point_righttop)"
+				+ " VALUES (?, ?, ?, ?, ?, ?, ?, null, null);";
+			PreparedStatement streetresultwithoutGeomInsertStmt = con_listofstreets.prepareStatement(streetresultwithoutGeomInsertSql);
+			System.out.println("Insert street result withoutGeom string ===" + streetresultwithoutGeomInsertSql + "===");
+			logger.log(Level.FINEST, "insert sql for evaluation_street row withoutGeom ===" + streetresultwithoutGeomInsertSql + "===");
+
+
+			
 			Long evaluationId = -1L;
 			String evaluationInsertSql = "INSERT INTO evaluation (country_id, municipality_id, evaluation_overview_id,"
 				+ " number_liststreets, number_osmstreets, number_osmsinglestreets,number_missingstreets,tstamp, osmdb_tstamp)"
@@ -396,16 +404,31 @@ Long local_street_id = -1L;
 System.out.println("missing street_id at actual street ===" + activestreet.name + "===");
 				}
 
-				streetresultInsertStmt.setLong(1, evaluationId);
-				streetresultInsertStmt.setLong(2, local_street_id);
-				streetresultInsertStmt.setString(3, activestreet.name);
-				streetresultInsertStmt.setString(4, activestreet.streetref);
-				streetresultInsertStmt.setString(5, activestreet.osm_id);
-				streetresultInsertStmt.setString(6, activestreet.osm_type);
-				streetresultInsertStmt.setString(7, activestreet.osm_objectkeyvalue);
-				streetresultInsertStmt.execute();
+				if(		!activestreet.point_leftbottom.equals("")
+					&&	!activestreet.point_righttop.equals("")) {
+					streetresultwithGeomInsertStmt.setLong(1, evaluationId);
+					streetresultwithGeomInsertStmt.setLong(2, local_street_id);
+					streetresultwithGeomInsertStmt.setString(3, activestreet.name);
+					streetresultwithGeomInsertStmt.setString(4, activestreet.streetref);
+					streetresultwithGeomInsertStmt.setString(5, activestreet.osm_id);
+					streetresultwithGeomInsertStmt.setString(6, activestreet.osm_type);
+					streetresultwithGeomInsertStmt.setString(7, activestreet.osm_objectkeyvalue);
+					streetresultwithGeomInsertStmt.setString(8, activestreet.point_leftbottom);
+					streetresultwithGeomInsertStmt.setString(9, activestreet.point_righttop);
+					streetresultwithGeomInsertStmt.execute();
+				} else {
+					streetresultwithoutGeomInsertStmt.setLong(1, evaluationId);
+					streetresultwithoutGeomInsertStmt.setLong(2, local_street_id);
+					streetresultwithoutGeomInsertStmt.setString(3, activestreet.name);
+					streetresultwithoutGeomInsertStmt.setString(4, activestreet.streetref);
+					streetresultwithoutGeomInsertStmt.setString(5, activestreet.osm_id);
+					streetresultwithoutGeomInsertStmt.setString(6, activestreet.osm_type);
+					streetresultwithoutGeomInsertStmt.setString(7, activestreet.osm_objectkeyvalue);
+					streetresultwithoutGeomInsertStmt.execute();
+				}
 	    	}
-			streetresultInsertStmt.close();
+			streetresultwithGeomInsertStmt.close();
+			streetresultwithoutGeomInsertStmt.close();
 
 				// transaction commit
 			con_listofstreets.commit();

@@ -158,7 +158,7 @@ sqlbefehl_objekte += " null as postalcode";
 				if( ! temp_linecenterpoint.equals(""))
 					temp_point_source = "OSM";
 				Street new_street =  new Street("street", "", "", rs_objekte.getLong("id"), rs_objekte.getString("name"),
-					rs_objekte.getString("streetref"), rs_objekte.getString("postalcode"), temp_linecenterpoint, temp_point_source);
+					rs_objekte.getString("streetref"), rs_objekte.getString("postalcode"), temp_linecenterpoint, temp_point_source, "", "");
 				if(streets.get(new_street) != null)
 						streets.update(new_street);
 				else
