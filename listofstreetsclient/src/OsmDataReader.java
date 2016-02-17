@@ -153,7 +153,11 @@ public class OsmDataReader {
 		}
 		sqlbefehl_objekte += " osm_id AS id, highway AS highwaytype,"
 			+ " tags->'postal_code' AS postalcode,"
-			+ " ST_AsText(ST_Transform(ST_Centroid(way),4326)) AS linecenterpoint";
+			+ " ST_AsText(ST_Transform(ST_Centroid(way),4326)) AS linecenterpoint,"
+			+ " ST_Xmin(Box2D(ST_Transform(way,4326))) AS leftbottom_xpos,"
+			+ " ST_Ymin(Box2D(ST_Transform(way,4326))) AS leftbottom_ypos,"
+			+ " ST_Xmax(Box2D(ST_Transform(way,4326))) AS righttop_xpos,"
+			+ " ST_Ymax(Box2D(ST_Transform(way,4326))) AS righttop_ypos";
 		if(! akt_parameterstreetref.equals(""))
 			sqlbefehl_objekte += ", tags->'" + akt_parameterstreetref + "' AS streetref";
 		else
@@ -248,9 +252,11 @@ public class OsmDataReader {
 					String temp_point_source = "";
 					if( ! temp_linecenterpoint.equals(""))
 						temp_point_source = "OSM";
+					String point_leftbottom = "POINT(" + rs_objekte.getDouble("leftbottom_xpos") + " " + rs_objekte.getDouble("leftbottom_ypos") + ")";
+					String point_righttop = "POINT(" + rs_objekte.getDouble("righttop_xpos") + " " + rs_objekte.getDouble("righttop_ypos") + ")";
 					Street new_street =  new Street("osm", "way", local_osm_validkeyvalue, rs_objekte.getLong("id"), 
 							temp_aktstrasse, rs_objekte.getString("streetref"), rs_objekte.getString("postalcode"),
-							temp_linecenterpoint, temp_point_source);
+							temp_linecenterpoint, temp_point_source, point_leftbottom, point_righttop);
 					if(streets.get(new_street) != null)
 							streets.get(new_street).update(new_street);
 					else
@@ -270,7 +276,11 @@ public class OsmDataReader {
 			}
 			sqlbefehl_objekte += " osm_id AS id, highway as highwaytype, tags->'place' as place,"
 				+ " tags->'postal_code' AS postalcode,"
-				+ " ST_AsText(ST_Transform(ST_Centroid(way),4326)) as linecenterpoint";
+				+ " ST_AsText(ST_Transform(ST_Centroid(way),4326)) as linecenterpoint,"
+				+ " ST_Xmin(Box2D(ST_Transform(way,4326))) AS leftbottom_xpos,"
+				+ " ST_Ymin(Box2D(ST_Transform(way,4326))) AS leftbottom_ypos,"
+				+ " ST_Xmax(Box2D(ST_Transform(way,4326))) AS righttop_xpos,"
+				+ " ST_Ymax(Box2D(ST_Transform(way,4326))) AS righttop_ypos";
 			if(! akt_parameterstreetref.equals(""))
 				sqlbefehl_objekte += ", tags->'" + akt_parameterstreetref + "' AS streetref";
 			else
@@ -429,9 +439,11 @@ public class OsmDataReader {
 					String temp_point_source = "";
 					if( ! temp_linecenterpoint.equals(""))
 						temp_point_source = "OSM";
+					String point_leftbottom = "POINT(" + rs_objekte.getDouble("leftbottom_xpos") + " " + rs_objekte.getDouble("leftbottom_ypos") + ")";
+					String point_righttop = "POINT(" + rs_objekte.getDouble("righttop_xpos") + " " + rs_objekte.getDouble("righttop_ypos") + ")";
 					Street new_street =  new Street("osm", "way", local_osm_validkeyvalue, rs_objekte.getLong("id"), 
 							temp_aktstrasse, rs_objekte.getString("streetref"), rs_objekte.getString("postalcode"),
-							temp_linecenterpoint, temp_point_source);
+							temp_linecenterpoint, temp_point_source, point_leftbottom, point_righttop);
 					if(streets.get(new_street) != null)
 							streets.update(new_street);
 					else
@@ -455,7 +467,11 @@ public class OsmDataReader {
 				sqlbefehl_objekte += " tags->'"+act_name+"' AS "+act_name+",";
 			}
 			sqlbefehl_objekte += " osm_id as id, tags->'place' as place, tags->'postal_code' AS postalcode,"
-				+ " ST_AsText(ST_Transform(way,4326)) as point";
+				+ " ST_AsText(ST_Transform(way,4326)) as point,"
+				+ " ST_X(ST_Transform(way,4326)) AS leftbottom_xpos,"
+				+ " ST_Y(ST_Transform(way,4326)) AS leftbottom_ypos,"
+				+ " ST_X(ST_Transform(way,4326)) AS righttop_xpos,"
+				+ " ST_Y(ST_Transform(way,4326)) AS righttop_ypos";
 			if(! akt_parameterstreetref.equals(""))
 				sqlbefehl_objekte += ", tags->'" + akt_parameterstreetref + "' AS streetref";
 			else
@@ -538,9 +554,11 @@ public class OsmDataReader {
 					if( ! temp_point.equals("")) {
 						temp_point_source = "OSM";
 					}
+					String point_leftbottom = "POINT(" + rs_objekte.getDouble("leftbottom_xpos") + " " + rs_objekte.getDouble("leftbottom_ypos") + ")";
+					String point_righttop = "POINT(" + rs_objekte.getDouble("righttop_xpos") + " " + rs_objekte.getDouble("righttop_ypos") + ")";
 					Street new_street =  new Street("osm", "node", local_osm_validkeyvalue, rs_objekte.getLong("id"), 
 							temp_aktstrasse, rs_objekte.getString("streetref"), rs_objekte.getString("postalcode"), 
-							temp_point, temp_point_source);
+							temp_point, temp_point_source, point_leftbottom, point_righttop);
 					if(streets.get(new_street) != null)
 							streets.update(new_street);
 					else
