@@ -329,6 +329,9 @@ Integer evaluationOverviewId = -1;
 			evaluationInsertStmt.setLong(3, evaluationOverviewId);
 			evaluationInsertStmt.setString(4, time_formatter_iso8601wozone.format(this.getEvaluationTimestamp()));
 			evaluationInsertStmt.setString(5, time_formatter_iso8601wozone.format(this.getOsmdbTimestamp()));
+			System.out.println("evaluationInsertStmt: [country_id] " + this.getCountryDbId() + "  [muni_id] " + this.getmunicipalityDbId()
+				+ "  [eval_overview_id] " + evaluationOverviewId + "  [eval_tstamp] " + time_formatter_iso8601wozone.format(this.getEvaluationTimestamp())
+				+ "  [osmdb_tstamp] " +time_formatter_iso8601wozone.format(this.getOsmdbTimestamp()));
 
 			String evaluationUpdateSql = "UPDATE evaluation SET"
 				+ " number_liststreets = ?, number_osmstreets = ?, number_missingstreets = ?,"
@@ -415,6 +418,10 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 					streetresultwithGeomInsertStmt.setString(7, activestreet.osm_objectkeyvalue);
 					streetresultwithGeomInsertStmt.setString(8, activestreet.point_leftbottom);
 					streetresultwithGeomInsertStmt.setString(9, activestreet.point_righttop);
+					System.out.println("streetresultwithGeomInsertStmt: [eval-id] " + evaluationId + "  [street_id] " + local_street_id
+						+ "  [streetname] " + activestreet.name + "  [streetref] " + activestreet.streetref + "  [osm_id] " + activestreet.osm_id
+						+ "  [osm_typ] " + activestreet.osm_type + "  [osm_keyvalues] " + activestreet.osm_objectkeyvalue 
+						+ "  [bbox-lb] " + activestreet.point_leftbottom + "  [bbox-rt] " +activestreet.point_righttop);
 					streetresultwithGeomInsertStmt.execute();
 				} else {
 					streetresultwithoutGeomInsertStmt.setLong(1, evaluationId);
@@ -424,28 +431,31 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 					streetresultwithoutGeomInsertStmt.setString(5, activestreet.osm_id);
 					streetresultwithoutGeomInsertStmt.setString(6, activestreet.osm_type);
 					streetresultwithoutGeomInsertStmt.setString(7, activestreet.osm_objectkeyvalue);
+					System.out.println("streetresultwithoutGeomInsertStmt: [eval-id] " + evaluationId + "  [street_id] " + local_street_id
+							+ "  [streetname] " + activestreet.name + "  [streetref] " + activestreet.streetref + "  [osm_id] " + activestreet.osm_id
+							+ "  [osm_typ] " + activestreet.osm_type + "  [osm_keyvalues] " + activestreet.osm_objectkeyvalue);
 					streetresultwithoutGeomInsertStmt.execute();
 				}
 	    	}
 			streetresultwithGeomInsertStmt.close();
 			streetresultwithoutGeomInsertStmt.close();
 
+			System.out.println("Start commit of insert street results ...");
 				// transaction commit
 			con_listofstreets.commit();
 				// re-activate standard auto-transation mode for every db-action
 			con_listofstreets.setAutoCommit(true);
+			System.out.println("Finished commit of insert street results ...");
 
-			evaluationUpdateStmt.setInt(1, streets_list_count);
-			evaluationUpdateStmt.setInt(2, streets_identical_count);
-			evaluationUpdateStmt.setInt(3, streets_listonly_count);
-			evaluationUpdateStmt.setInt(4, streets_osmonly_count);
-			evaluationUpdateStmt.setLong(5, evaluationId);
-	System.out.println("1 ===" + streets_list_count + "===");
-	System.out.println("2 ===" + streets_identical_count + "===");
-	System.out.println("3 ===" + streets_listonly_count + "===");
-	System.out.println("4 ===" + streets_osmonly_count + "===");
-	System.out.println("5 ===" + evaluationId + "===");
 			try {
+				evaluationUpdateStmt.setInt(1, streets_list_count);
+				evaluationUpdateStmt.setInt(2, streets_identical_count);
+				evaluationUpdateStmt.setInt(3, streets_listonly_count);
+				evaluationUpdateStmt.setInt(4, streets_osmonly_count);
+				evaluationUpdateStmt.setLong(5, evaluationId);
+				System.out.println("evaluationUpdateStmt: [str_list_count] " + streets_list_count + "  [str_ident_count] " + streets_identical_count
+					+ "  [str_listonly_count] " + streets_listonly_count + "  [str_osmonly_count] " + streets_osmonly_count
+					+ "  [eval_id] " + evaluationId);
 				evaluationUpdateStmt.execute();
 			}
 			catch( SQLException e) {
