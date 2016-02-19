@@ -202,65 +202,65 @@ public class OsmDataReader {
 						if (!act_name.equals("name")) {
 							logger.log(Level.FINER, "Ausgabe OSM-Straße Name-Variation (" + act_name + ") ==="+temp_aktstrasse +"===");
 						}
-					}
-				}
-				logger.log(Level.FINER, "OSM-Straße ==="+temp_aktstrasse +"===    osm-id ==="+rs_objekte.getString("id")+"===");
-				String local_osm_validkeyvalue = "";
-					// check for all possible values, optionally separated by ;
-				String[] local_keyvalue = rs_objekte.getString("highwaytype").split(";");
-				for(Integer local_keyvaluei=0;local_keyvaluei<local_keyvalue.length;local_keyvaluei++) {
-					if( local_keyvalue[local_keyvaluei].equals("trunk") || 
-						local_keyvalue[local_keyvaluei].equals("trunk_link") || 
-						local_keyvalue[local_keyvaluei].equals("primary") || 
-						local_keyvalue[local_keyvaluei].equals("primary_link") || 
-						local_keyvalue[local_keyvaluei].equals("secondary") || 
-						local_keyvalue[local_keyvaluei].equals("secondary_link") || 
-						local_keyvalue[local_keyvaluei].equals("tertiary") || 
-						local_keyvalue[local_keyvaluei].equals("tertiary_link") || 
-						local_keyvalue[local_keyvaluei].equals("unclassified") || 
-						local_keyvalue[local_keyvaluei].equals("living_street") || 
-						local_keyvalue[local_keyvaluei].equals("pedestrian") || 
-						local_keyvalue[local_keyvaluei].equals("construction") || 
-						local_keyvalue[local_keyvaluei].equals("service") || 
-						local_keyvalue[local_keyvaluei].equals("road") || 
-						local_keyvalue[local_keyvaluei].equals("track") || 
-						local_keyvalue[local_keyvaluei].equals("path") || 
-						local_keyvalue[local_keyvaluei].equals("cycleway") || 
-						local_keyvalue[local_keyvaluei].equals("steps") || 
-						local_keyvalue[local_keyvaluei].equals("footway") || 
-						local_keyvalue[local_keyvaluei].equals("residential") ||
-						local_keyvalue[local_keyvaluei].equals("proposed")
-						) {
-							if( ! local_osm_validkeyvalue.equals(""))
-								local_osm_validkeyvalue += ";" + local_keyvalue[local_keyvaluei];
-							else
-								local_osm_validkeyvalue = "highway=" + local_keyvalue[local_keyvaluei];
-					} else if(	local_keyvalue[local_keyvaluei].equals("platform") || 
-								local_keyvalue[local_keyvaluei].equals("bridleway") || 
-								local_keyvalue[local_keyvaluei].equals("raceway") ||
-								local_keyvalue[local_keyvaluei].equals("bus_stop") ||  
-								local_keyvalue[local_keyvaluei].equals("rest_area")
-							) {
-						logger.log(Level.FINEST, " Info: ignore highway="+local_keyvalue[local_keyvaluei]+"  highway-name ==="+temp_aktstrasse+"===");
-					} else {
-						logger.log(Level.FINE, " 1. Action highway unexpected value, please check ==="+local_keyvalue[local_keyvaluei]+"===   street name ==="+temp_aktstrasse+"===  osm-id ==="+rs_objekte.getString("id")+"===");
-					}
-				}
+						logger.log(Level.FINER, "OSM-Straße ==="+temp_aktstrasse +"===    osm-id ==="+rs_objekte.getString("id")+"===");
+						String local_osm_validkeyvalue = "";
+							// check for all possible values, optionally separated by ;
+						String[] local_keyvalue = rs_objekte.getString("highwaytype").split(";");
+						for(Integer local_keyvaluei=0;local_keyvaluei<local_keyvalue.length;local_keyvaluei++) {
+							if( local_keyvalue[local_keyvaluei].equals("trunk") || 
+								local_keyvalue[local_keyvaluei].equals("trunk_link") || 
+								local_keyvalue[local_keyvaluei].equals("primary") || 
+								local_keyvalue[local_keyvaluei].equals("primary_link") || 
+								local_keyvalue[local_keyvaluei].equals("secondary") || 
+								local_keyvalue[local_keyvaluei].equals("secondary_link") || 
+								local_keyvalue[local_keyvaluei].equals("tertiary") || 
+								local_keyvalue[local_keyvaluei].equals("tertiary_link") || 
+								local_keyvalue[local_keyvaluei].equals("unclassified") || 
+								local_keyvalue[local_keyvaluei].equals("living_street") || 
+								local_keyvalue[local_keyvaluei].equals("pedestrian") || 
+								local_keyvalue[local_keyvaluei].equals("construction") || 
+								local_keyvalue[local_keyvaluei].equals("service") || 
+								local_keyvalue[local_keyvaluei].equals("road") || 
+								local_keyvalue[local_keyvaluei].equals("track") || 
+								local_keyvalue[local_keyvaluei].equals("path") || 
+								local_keyvalue[local_keyvaluei].equals("cycleway") || 
+								local_keyvalue[local_keyvaluei].equals("steps") || 
+								local_keyvalue[local_keyvaluei].equals("footway") || 
+								local_keyvalue[local_keyvaluei].equals("residential") ||
+								local_keyvalue[local_keyvaluei].equals("proposed")
+								) {
+									if( ! local_osm_validkeyvalue.equals(""))
+										local_osm_validkeyvalue += ";" + local_keyvalue[local_keyvaluei];
+									else
+										local_osm_validkeyvalue = "highway=" + local_keyvalue[local_keyvaluei];
+							} else if(	local_keyvalue[local_keyvaluei].equals("platform") || 
+										local_keyvalue[local_keyvaluei].equals("bridleway") || 
+										local_keyvalue[local_keyvaluei].equals("raceway") ||
+										local_keyvalue[local_keyvaluei].equals("bus_stop") ||  
+										local_keyvalue[local_keyvaluei].equals("rest_area")
+									) {
+								logger.log(Level.FINEST, " Info: ignore highway="+local_keyvalue[local_keyvaluei]+"  highway-name ==="+temp_aktstrasse+"===");
+							} else {
+								logger.log(Level.FINE, " 1. Action highway unexpected value, please check ==="+local_keyvalue[local_keyvaluei]+"===   street name ==="+temp_aktstrasse+"===  osm-id ==="+rs_objekte.getString("id")+"===");
+							}
+						}
 	
-				if( ! local_osm_validkeyvalue.equals("")) {
-					String temp_linecenterpoint = rs_objekte.getString("linecenterpoint");
-					String temp_point_source = "";
-					if( ! temp_linecenterpoint.equals(""))
-						temp_point_source = "OSM";
-					String point_leftbottom = "POINT(" + rs_objekte.getDouble("leftbottom_xpos") + " " + rs_objekte.getDouble("leftbottom_ypos") + ")";
-					String point_righttop = "POINT(" + rs_objekte.getDouble("righttop_xpos") + " " + rs_objekte.getDouble("righttop_ypos") + ")";
-					Street new_street =  new Street("osm", "way", local_osm_validkeyvalue, rs_objekte.getLong("id"), 
-							temp_aktstrasse, rs_objekte.getString("streetref"), rs_objekte.getString("postalcode"),
-							temp_linecenterpoint, temp_point_source, point_leftbottom, point_righttop);
-					if(streets.get(new_street) != null)
-							streets.get(new_street).update(new_street);
-					else
-							streets.add(new_street);
+						if( ! local_osm_validkeyvalue.equals("")) {
+							String temp_linecenterpoint = rs_objekte.getString("linecenterpoint");
+							String temp_point_source = "";
+							if( ! temp_linecenterpoint.equals(""))
+								temp_point_source = "OSM";
+							String point_leftbottom = "POINT(" + rs_objekte.getDouble("leftbottom_xpos") + " " + rs_objekte.getDouble("leftbottom_ypos") + ")";
+							String point_righttop = "POINT(" + rs_objekte.getDouble("righttop_xpos") + " " + rs_objekte.getDouble("righttop_ypos") + ")";
+							Street new_street =  new Street("osm", "way", local_osm_validkeyvalue, rs_objekte.getLong("id"), 
+									temp_aktstrasse, rs_objekte.getString("streetref"), rs_objekte.getString("postalcode"),
+									temp_linecenterpoint, temp_point_source, point_leftbottom, point_righttop);
+							if(streets.get(new_street) != null)
+									streets.get(new_street).update(new_street);
+							else
+									streets.add(new_street);
+						}
+					}
 				}
 			}
 	
@@ -345,51 +345,51 @@ public class OsmDataReader {
 						if (!act_name.equals("name")) {
 							logger.log(Level.FINER, "Ausgabe OSM-Straße Name-Variation (" + act_name + ") ==="+temp_aktstrasse +"===");
 						}
-					}
-				}
 	
-				if(rs_objekte.getString("highwaytype") != null) {
-					anzahl_datensaetze_osmstreets++;
-	
-						// check for all possible values, optionally separated by ;
-					String[] local_keyvalue = rs_objekte.getString("highwaytype").split(";");
-					for(Integer local_keyvaluei=0;local_keyvaluei<local_keyvalue.length;local_keyvaluei++) {
-						if( local_keyvalue[local_keyvaluei].equals("trunk") || 
-							local_keyvalue[local_keyvaluei].equals("trunk_link") || 
-							local_keyvalue[local_keyvaluei].equals("primary") || 
-							local_keyvalue[local_keyvaluei].equals("primary_link") || 
-							local_keyvalue[local_keyvaluei].equals("secondary") || 
-							local_keyvalue[local_keyvaluei].equals("secondary_link") || 
-							local_keyvalue[local_keyvaluei].equals("tertiary") || 
-							local_keyvalue[local_keyvaluei].equals("tertiary_link") || 
-							local_keyvalue[local_keyvaluei].equals("unclassified") || 
-							local_keyvalue[local_keyvaluei].equals("living_street") || 
-							local_keyvalue[local_keyvaluei].equals("pedestrian") || 
-							local_keyvalue[local_keyvaluei].equals("construction") || 
-							local_keyvalue[local_keyvaluei].equals("service") || 
-							local_keyvalue[local_keyvaluei].equals("road") || 
-							local_keyvalue[local_keyvaluei].equals("track") || 
-							local_keyvalue[local_keyvaluei].equals("path") || 
-							local_keyvalue[local_keyvaluei].equals("cycleway") || 
-							local_keyvalue[local_keyvaluei].equals("steps") || 
-							local_keyvalue[local_keyvaluei].equals("footway") || 
-							local_keyvalue[local_keyvaluei].equals("residential") ||
-							local_keyvalue[local_keyvaluei].equals("proposed")
-							) {
-								if( ! local_osm_validkeyvalue.equals(""))
-									local_osm_validkeyvalue += ";" + local_keyvalue[local_keyvaluei];
-								else
-									local_osm_validkeyvalue = "highway=" + local_keyvalue[local_keyvaluei];
-								//System.out.println(" 1. Action Treffer highway ==="+local_keyvalue[local_keyvaluei]+"===   name ==="+temp_aktstrasse+"===");
-						} else if	(	local_keyvalue[local_keyvaluei].equals("platform") || 
-										local_keyvalue[local_keyvaluei].equals("bridleway") || 
-										local_keyvalue[local_keyvaluei].equals("raceway") || 
-										local_keyvalue[local_keyvaluei].equals("bus_stop") ||  
-										local_keyvalue[local_keyvaluei].equals("rest_area")
-											) {
-							logger.log(Level.FINEST, " Info: ignore highway="+local_keyvalue[local_keyvaluei]+"  highway-name ==="+temp_aktstrasse+"===");
-						} else {
-							logger.log(Level.FINE, " 1. Action highway unexpected value, please check ==="+local_keyvalue[local_keyvaluei]+"===   name ==="+temp_aktstrasse+"===");
+						if(rs_objekte.getString("highwaytype") != null) {
+							anzahl_datensaetze_osmstreets++;
+			
+								// check for all possible values, optionally separated by ;
+							String[] local_keyvalue = rs_objekte.getString("highwaytype").split(";");
+							for(Integer local_keyvaluei=0;local_keyvaluei<local_keyvalue.length;local_keyvaluei++) {
+								if( local_keyvalue[local_keyvaluei].equals("trunk") || 
+									local_keyvalue[local_keyvaluei].equals("trunk_link") || 
+									local_keyvalue[local_keyvaluei].equals("primary") || 
+									local_keyvalue[local_keyvaluei].equals("primary_link") || 
+									local_keyvalue[local_keyvaluei].equals("secondary") || 
+									local_keyvalue[local_keyvaluei].equals("secondary_link") || 
+									local_keyvalue[local_keyvaluei].equals("tertiary") || 
+									local_keyvalue[local_keyvaluei].equals("tertiary_link") || 
+									local_keyvalue[local_keyvaluei].equals("unclassified") || 
+									local_keyvalue[local_keyvaluei].equals("living_street") || 
+									local_keyvalue[local_keyvaluei].equals("pedestrian") || 
+									local_keyvalue[local_keyvaluei].equals("construction") || 
+									local_keyvalue[local_keyvaluei].equals("service") || 
+									local_keyvalue[local_keyvaluei].equals("road") || 
+									local_keyvalue[local_keyvaluei].equals("track") || 
+									local_keyvalue[local_keyvaluei].equals("path") || 
+									local_keyvalue[local_keyvaluei].equals("cycleway") || 
+									local_keyvalue[local_keyvaluei].equals("steps") || 
+									local_keyvalue[local_keyvaluei].equals("footway") || 
+									local_keyvalue[local_keyvaluei].equals("residential") ||
+									local_keyvalue[local_keyvaluei].equals("proposed")
+									) {
+										if( ! local_osm_validkeyvalue.equals(""))
+											local_osm_validkeyvalue += ";" + local_keyvalue[local_keyvaluei];
+										else
+											local_osm_validkeyvalue = "highway=" + local_keyvalue[local_keyvaluei];
+										//System.out.println(" 1. Action Treffer highway ==="+local_keyvalue[local_keyvaluei]+"===   name ==="+temp_aktstrasse+"===");
+								} else if	(	local_keyvalue[local_keyvaluei].equals("platform") || 
+												local_keyvalue[local_keyvaluei].equals("bridleway") || 
+												local_keyvalue[local_keyvaluei].equals("raceway") || 
+												local_keyvalue[local_keyvaluei].equals("bus_stop") ||  
+												local_keyvalue[local_keyvaluei].equals("rest_area")
+													) {
+									logger.log(Level.FINEST, " Info: ignore highway="+local_keyvalue[local_keyvaluei]+"  highway-name ==="+temp_aktstrasse+"===");
+								} else {
+									logger.log(Level.FINE, " 1. Action highway unexpected value, please check ==="+local_keyvalue[local_keyvaluei]+"===   name ==="+temp_aktstrasse+"===");
+								}
+							}
 						}
 					}
 				}  // end of type highway
@@ -507,62 +507,62 @@ public class OsmDataReader {
 						if (!act_name.equals("name")) {
 							logger.log(Level.FINER, "Ausgabe OSM-Straße Name-Variation (" + act_name + ") ==="+temp_aktstrasse +"===");
 						}
-					}
-				}
-				logger.log(Level.FINER, "OSM-Placename ==="+temp_aktstrasse+"===   place-value ==="+rs_objekte.getString("place")+"===   osm-id ==="+rs_objekte.getString("id")+"===");
-				String temp_point = rs_objekte.getString("point");
-				String temp_point_source = "";
-				String local_osm_validkeyvalue = "";
-					// check for all possible values, optionally separated by ;
-				String[] local_keyvalue = rs_objekte.getString("place").split(";");
-				for(Integer local_keyvaluei=0;local_keyvaluei<local_keyvalue.length;local_keyvaluei++) {
-					if(	local_keyvalue[local_keyvaluei] == null) {
-						logger.log(Level.WARNING, "Warning: ignorierung record with null- place-Tag");
-						continue;
-					}
-					
-					if(	local_keyvalue[local_keyvaluei].equals("hamlet") 
-							|| local_keyvalue[local_keyvaluei].equals("village")				//moved from ignore to active at 2013-02-26
-							|| local_keyvalue[local_keyvaluei].equals("isolated_dwelling")
-							|| local_keyvalue[local_keyvaluei].equals("neighbourhood")			//moved from ignore to active at 2014-01-27 for Mannheim
-							|| local_keyvalue[local_keyvaluei].equals("suburb")					//moved from ignore to actige at 2014-01-07
-							|| local_keyvalue[local_keyvaluei].equals("locality")				//new evaluate at 2011-12-01
-							|| local_keyvalue[local_keyvaluei].equals("farm") 					//new evaluate at 2014-02-15
-							) {
-						if( ! local_osm_validkeyvalue.equals(""))
-							local_osm_validkeyvalue += ";" + local_keyvalue[local_keyvaluei];
-						else
-							local_osm_validkeyvalue = "place=" + local_keyvalue[local_keyvaluei];
-					} else if(	local_keyvalue[local_keyvaluei].equals("state") ||
-								local_keyvalue[local_keyvaluei].equals("region") ||
-								local_keyvalue[local_keyvaluei].equals("county") || 
-								local_keyvalue[local_keyvaluei].equals("municipality") || 
-								local_keyvalue[local_keyvaluei].equals("town") || 
-								local_keyvalue[local_keyvaluei].equals("city") ||  
-								local_keyvalue[local_keyvaluei].equals("quarter") ||
-								local_keyvalue[local_keyvaluei].equals("island") || 
-								local_keyvalue[local_keyvaluei].equals("islet")
-							) {
-						logger.log(Level.FINEST, " Info: ignore place ="+local_keyvalue[local_keyvaluei]+"  place-name ==="+temp_aktstrasse+"===");
-					} else {
-						logger.log(Level.WARNING, " Info: unexcpeted value for place ="+local_keyvalue[local_keyvaluei]+"  place-name ==="+temp_aktstrasse+"===");
-					}
-				}
+						logger.log(Level.FINER, "OSM-Placename ==="+temp_aktstrasse+"===   place-value ==="+rs_objekte.getString("place")+"===   osm-id ==="+rs_objekte.getString("id")+"===");
+						String temp_point = rs_objekte.getString("point");
+						String temp_point_source = "";
+						String local_osm_validkeyvalue = "";
+							// check for all possible values, optionally separated by ;
+						String[] local_keyvalue = rs_objekte.getString("place").split(";");
+						for(Integer local_keyvaluei=0;local_keyvaluei<local_keyvalue.length;local_keyvaluei++) {
+							if(	local_keyvalue[local_keyvaluei] == null) {
+								logger.log(Level.WARNING, "Warning: ignorierung record with null- place-Tag");
+								continue;
+							}
+							
+							if(	local_keyvalue[local_keyvaluei].equals("hamlet") 
+									|| local_keyvalue[local_keyvaluei].equals("village")				//moved from ignore to active at 2013-02-26
+									|| local_keyvalue[local_keyvaluei].equals("isolated_dwelling")
+									|| local_keyvalue[local_keyvaluei].equals("neighbourhood")			//moved from ignore to active at 2014-01-27 for Mannheim
+									|| local_keyvalue[local_keyvaluei].equals("suburb")					//moved from ignore to actige at 2014-01-07
+									|| local_keyvalue[local_keyvaluei].equals("locality")				//new evaluate at 2011-12-01
+									|| local_keyvalue[local_keyvaluei].equals("farm") 					//new evaluate at 2014-02-15
+									) {
+								if( ! local_osm_validkeyvalue.equals(""))
+									local_osm_validkeyvalue += ";" + local_keyvalue[local_keyvaluei];
+								else
+									local_osm_validkeyvalue = "place=" + local_keyvalue[local_keyvaluei];
+							} else if(	local_keyvalue[local_keyvaluei].equals("state") ||
+										local_keyvalue[local_keyvaluei].equals("region") ||
+										local_keyvalue[local_keyvaluei].equals("county") || 
+										local_keyvalue[local_keyvaluei].equals("municipality") || 
+										local_keyvalue[local_keyvaluei].equals("town") || 
+										local_keyvalue[local_keyvaluei].equals("city") ||  
+										local_keyvalue[local_keyvaluei].equals("quarter") ||
+										local_keyvalue[local_keyvaluei].equals("island") || 
+										local_keyvalue[local_keyvaluei].equals("islet")
+									) {
+								logger.log(Level.FINEST, " Info: ignore place ="+local_keyvalue[local_keyvaluei]+"  place-name ==="+temp_aktstrasse+"===");
+							} else {
+								logger.log(Level.WARNING, " Info: unexcpeted value for place ="+local_keyvalue[local_keyvaluei]+"  place-name ==="+temp_aktstrasse+"===");
+							}
+						}
 	
-				if( ! local_osm_validkeyvalue.equals("")) {
-					logger.log(Level.FINEST, " found interesting place-object with name, osm-keyvalues ===" + local_osm_validkeyvalue + "===");
-					if( ! temp_point.equals("")) {
-						temp_point_source = "OSM";
+						if( ! local_osm_validkeyvalue.equals("")) {
+							logger.log(Level.FINEST, " found interesting place-object with name, osm-keyvalues ===" + local_osm_validkeyvalue + "===");
+							if( ! temp_point.equals("")) {
+								temp_point_source = "OSM";
+							}
+							String point_leftbottom = "POINT(" + rs_objekte.getDouble("leftbottom_xpos") + " " + rs_objekte.getDouble("leftbottom_ypos") + ")";
+							String point_righttop = "POINT(" + rs_objekte.getDouble("righttop_xpos") + " " + rs_objekte.getDouble("righttop_ypos") + ")";
+							Street new_street =  new Street("osm", "node", local_osm_validkeyvalue, rs_objekte.getLong("id"), 
+									temp_aktstrasse, rs_objekte.getString("streetref"), rs_objekte.getString("postalcode"), 
+									temp_point, temp_point_source, point_leftbottom, point_righttop);
+							if(streets.get(new_street) != null)
+									streets.update(new_street);
+							else
+									streets.add(new_street);
+						}
 					}
-					String point_leftbottom = "POINT(" + rs_objekte.getDouble("leftbottom_xpos") + " " + rs_objekte.getDouble("leftbottom_ypos") + ")";
-					String point_righttop = "POINT(" + rs_objekte.getDouble("righttop_xpos") + " " + rs_objekte.getDouble("righttop_ypos") + ")";
-					Street new_street =  new Street("osm", "node", local_osm_validkeyvalue, rs_objekte.getLong("id"), 
-							temp_aktstrasse, rs_objekte.getString("streetref"), rs_objekte.getString("postalcode"), 
-							temp_point, temp_point_source, point_leftbottom, point_righttop);
-					if(streets.get(new_street) != null)
-							streets.update(new_street);
-					else
-							streets.add(new_street);
 				}
 			}
 			rs_objekte.close();
