@@ -237,6 +237,7 @@ public class EvaluationNew {
 	public void setEvaluationText(String text) {
 		this.evaluationText = text;
 	}
+
 	
 	
 	private void storeEvaluation(StreetCollection streets) {
@@ -771,6 +772,7 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 
 					listreader.setExistingStreetlist(osmstreets);
 					mergedstreets = listreader.ReadListFromDB(evaluation);
+//TODO remove duplicate osm street name objects. Happens, if not only name=*, but also name-Variation were stored in StreetCollection - mergedstreets = evaluation.removeHitVariation(mergedstreets);
 
 					evaluation.storeEvaluation(mergedstreets);
 
