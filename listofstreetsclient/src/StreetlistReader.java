@@ -139,13 +139,15 @@ public class StreetlistReader {
 			// 3. Action - get all street from street list
 			// eigentlich als extra Lauf überflüssig, weil weiter unten die nur-Soll-Liste eigenständig erstellt wird
 		//produktiv bis 03.03.2013, jetzt werden die Spalten point_state und point_source nicht mehr gesetzt, weil Tabelle evalation_street die Daten haelt - sqlbefehl_objekte = "SELECT DISTINCT ON (name) name, id, ST_AsText(point) AS point, point_state, point_source ";
+
 			sqlbefehl_objekte = "SELECT DISTINCT ON (name, streetref) name, id, ST_AsText(point) AS point, point_source, streetref,";
-//TODO add column postalcode in table street and fill during streetlist import
-//TODO And fill streetref column during streetlist import, too
-sqlbefehl_objekte += " null as postalcode";
+			//TODO add column postalcode in table street and fill during streetlist import
+			//TODO And fill streetref column during streetlist import, too
+			sqlbefehl_objekte += " null as postalcode";
 			sqlbefehl_objekte += " FROM street";
 			sqlbefehl_objekte += " WHERE municipality_id = "+akt_municipality_id;
 			sqlbefehl_objekte += " ORDER BY name;";
+
 			logger.log(Level.FINEST, "sqlbefehl_objekte ==="+sqlbefehl_objekte+"===");
 			stmt_objekte = con_listofstreets.createStatement();
 			rs_objekte = stmt_objekte.executeQuery( sqlbefehl_objekte );
