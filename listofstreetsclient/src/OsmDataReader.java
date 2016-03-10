@@ -2,7 +2,6 @@
 
 import java.io.BufferedReader;
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
@@ -12,31 +11,76 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.logging.ConsoleHandler;
-import java.util.logging.FileHandler;
-import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import de.regioosm.listofstreetsclient.Applicationconfiguration;
 
 public class OsmDataReader {
-	Applicationconfiguration configuration = new Applicationconfiguration();
+	static Applicationconfiguration configuration = new Applicationconfiguration();
 	private static Logger logger = (Logger) EvaluationNew.logger;
-
-
 	static Connection con_mapnik = null;
 
+	public OsmDataReader() {
+		String url_mapnik = "";
+		
+		this.initialize();
 
-	
+		try {
+			if(con_mapnik == null) {
+				url_mapnik = configuration.db_osm2pgsql_url;
+				con_mapnik = DriverManager.getConnection(url_mapnik, configuration.db_osm2pgsql_username, configuration.db_osm2pgsql_password);
+			}
+			logger.log(Level.INFO, "Connection to database " + url_mapnik + " established.");
+		}
+		catch (SQLException e) {
+			logger.log(Level.SEVERE, "ERROR: failed to connect to database " + url_mapnik);
+			logger.log(Level.SEVERE, e.toString());
+			System.out.println("ERROR: failed to connect to database " + url_mapnik);
+			System.out.println(e.toString());
+			return;
+		}
+	}
+
+	/**
+	 * initial class properties
+	 */
+	public void initialize() {
+		//nothing to do yet
+	}
+
+
+	/**
+	 * 
+	 */
+	public void close() {
+			try {
+				if(con_mapnik != null) {
+					logger.log(Level.INFO, "Connection to mapnik DB " + con_mapnik.getMetaData().getURL() + " will be closed.");
+					con_mapnik.close();
+				}
+			}
+			catch( SQLException sqle) {
+				logger.log(Level.SEVERE, "SQL-Exception occured, when tried to close DB Connection, details follow ..");
+				logger.log(Level.SEVERE, sqle.toString());
+				System.out.println("SQL-Exception occured, when tried to close DB Connection, details follow ..");
+				System.out.println(sqle.toString());
+			}
+	}
+
+
 	public StreetCollection ReadDataFromDB(EvaluationNew  evaluation) {
 		StreetCollection streets = new StreetCollection();
 
 		if(		(evaluation.getCountry().equals(""))
 			||	(evaluation.getMunicipality().equals(""))) {
-				return null;
-			}		
+			return new StreetCollection();
+		}		
 
+		if(con_mapnik == null) {
+			return new StreetCollection();
+		}
+		
 		
 		String akt_jobname = evaluation.getMunicipality();
 		String akt_parameterstreetref = "";
@@ -45,47 +89,14 @@ public class OsmDataReader {
 		}
 		
 		streets.setEvaluationParameters(evaluation);
-		
-		try {
-
-			Handler handler = new ConsoleHandler();
-			handler.setLevel(configuration.logging_console_level);
-			logger.addHandler( handler );
-			FileHandler fhandler = new FileHandler(configuration.logging_filename);
-			fhandler.setLevel(configuration.logging_file_level);
-			logger.addHandler( fhandler );
-			logger.setLevel(configuration.logging_console_level);
-		} 
-		catch (IOException e) {
-			System.out.println("Fehler beim Logging-Handler erstellen, ...");
-			System.out.println(e.toString());
-		}
 
 		String osmosis_laststatefile = configuration.osmosis_laststatefile;
 
 		try {
-			String url_mapnik = configuration.db_osm2pgsql_url;
-			con_mapnik = DriverManager.getConnection(url_mapnik, configuration.db_osm2pgsql_username, configuration.db_osm2pgsql_password);
-	
 			String dateizeile = "";
-	
-	
-			java.util.Date time_act_municipality_starttime = null;
-			java.util.Date time_last_step = null;
-			java.util.Date time_now = null;
-	
-			java.util.Date time_evalation = null;
-			java.util.Date time_osmdb = null;
 	
 			DateFormat time_formatter_iso8601 = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ");		// in iso8601 format, with timezone
 	
-	
-			java.util.Date time_detail_start = null;
-			java.util.Date time_detail_end  = null;
-	
-			time_evalation = new java.util.Date();
-	
-
 				// read the filestamp of the update of the local osm-db. This timestamp will be stored together with the evaluation
 			BufferedReader filereader = new BufferedReader(new InputStreamReader(new FileInputStream(osmosis_laststatefile), StandardCharsets.UTF_8));
 					//#Fri Sep 21 07:39:59 CEST 2012
@@ -102,7 +113,6 @@ public class OsmDataReader {
 					java.util.Date temp_time = new java.util.Date();
 					logger.log(Level.FINE, "test zeit iso8601 ==="+time_formatter_iso8601.format(temp_time)+"===");
 
-					time_osmdb = time_formatter_iso8601.parse(local_time);
 				}
 			}
 			filereader.close();
@@ -112,7 +122,7 @@ public class OsmDataReader {
 			logger.log(Level.INFO, e.toString());
 			System.out.println("ERROR: failed to read osmosis last.state.txt file ==="+osmosis_laststatefile+"===");
 			System.out.println(e.toString());
-			return streets;
+			return new StreetCollection();
 		}
 			
 
@@ -120,19 +130,14 @@ public class OsmDataReader {
 			
 		Integer anzahl_datensaetze_osmstreets = 0;
 		Integer anzahl_datensaetze_osmplaces = 0;
-		Integer anzahl_datensaetze_sollliste = 0;
-		Integer anzahl_datensaetze_singlesoll = 0;
-		Integer anzahl_datensaetze_singleosm = 0;
 
 
-		logger.log(Level.FINE, "========================================================================================");
-		logger.log(Level.FINE, "   Job  =" + akt_jobname +"=   muni-id: "+evaluation.getmunicipalityDbId());
-		logger.log(Level.FINE, "----------------------------------------------------------------------------------------");
+		logger.log(Level.FINE, "   ----------------------------------------------------------------------------------------");
+		logger.log(Level.FINE, "   ----------------------------------------------------------------------------------------");
+		logger.log(Level.FINE, "      Read OSM Data - Job  =" + akt_jobname +"=   muni-id: "+evaluation.getmunicipalityDbId());
 
 
-		Long akt_municipality_id = evaluation.getmunicipalityDbId();
 		String akt_gebietsgeometrie = evaluation.getMunitipalityGeometryBinaryString();
-		String act_polygonstate = evaluation.getPolygonstate();
 
 		String sqlbefehl_objekte = "";
 		Statement stmt_objekte = null;
@@ -141,7 +146,7 @@ public class OsmDataReader {
 			// Array of all name-variants, which will be requested by sql-statement; most important at END
 		String[] keyvariation_namelist = {"old_name", "loc_name", "alt_name", "official_name", "name"};
 
-
+boolean examineStreetGeometryData = false;
 			// ------------------------------------------------------------------------------
 			// 1. Action - get all street from osm table   PLANET_LINE   within boundary-polygon
 						// DISTINCT ON (tags->'name')
@@ -153,11 +158,13 @@ public class OsmDataReader {
 		}
 		sqlbefehl_objekte += " osm_id AS id, highway AS highwaytype,"
 			+ " tags->'postal_code' AS postalcode,"
-			+ " ST_AsText(ST_Transform(ST_Centroid(way),4326)) AS linecenterpoint,"
-			+ " ST_Xmin(Box2D(ST_Transform(way,4326))) AS leftbottom_xpos,"
-			+ " ST_Ymin(Box2D(ST_Transform(way,4326))) AS leftbottom_ypos,"
-			+ " ST_Xmax(Box2D(ST_Transform(way,4326))) AS righttop_xpos,"
-			+ " ST_Ymax(Box2D(ST_Transform(way,4326))) AS righttop_ypos";
+			+ " ST_AsText(ST_Transform(ST_Centroid(way),4326)) AS linecenterpoint";
+		if(examineStreetGeometryData) {
+			sqlbefehl_objekte += ", ST_Xmin(Box2D(ST_Transform(way,4326))) AS leftbottom_xpos,"
+				+ " ST_Ymin(Box2D(ST_Transform(way,4326))) AS leftbottom_ypos,"
+				+ " ST_Xmax(Box2D(ST_Transform(way,4326))) AS righttop_xpos,"
+				+ " ST_Ymax(Box2D(ST_Transform(way,4326))) AS righttop_ypos";
+		}
 		if(! akt_parameterstreetref.equals(""))
 			sqlbefehl_objekte += ", tags->'" + akt_parameterstreetref + "' AS streetref";
 		else
@@ -180,7 +187,7 @@ public class OsmDataReader {
 
 
 		try {
-			logger.log(Level.FINEST, "sqlbefehl_objekte (osm ways) ==="+sqlbefehl_objekte+"===");
+			//logger.log(Level.FINEST, "sqlbefehl_objekte (osm ways) ==="+sqlbefehl_objekte+"===");
 			stmt_objekte = con_mapnik.createStatement();
 
 			java.util.Date local_query_start = new java.util.Date();
@@ -202,7 +209,7 @@ public class OsmDataReader {
 						if (!act_name.equals("name")) {
 							logger.log(Level.FINER, "Ausgabe OSM-Straße Name-Variation (" + act_name + ") ==="+temp_aktstrasse +"===");
 						}
-						logger.log(Level.FINER, "OSM-Straße ==="+temp_aktstrasse +"===    osm-id ==="+rs_objekte.getString("id")+"===");
+						logger.log(Level.FINER, "OSM-Straße ==="+temp_aktstrasse +"===    osm-id ==="+rs_objekte.getString("id")+"===     name-variant: " + act_name);
 						String local_osm_validkeyvalue = "";
 							// check for all possible values, optionally separated by ;
 						String[] local_keyvalue = rs_objekte.getString("highwaytype").split(";");
@@ -250,8 +257,12 @@ public class OsmDataReader {
 							String temp_point_source = "";
 							if( ! temp_linecenterpoint.equals(""))
 								temp_point_source = "OSM";
-							String point_leftbottom = "POINT(" + rs_objekte.getDouble("leftbottom_xpos") + " " + rs_objekte.getDouble("leftbottom_ypos") + ")";
-							String point_righttop = "POINT(" + rs_objekte.getDouble("righttop_xpos") + " " + rs_objekte.getDouble("righttop_ypos") + ")";
+							String point_leftbottom = null;
+							String point_righttop = null;
+							if(examineStreetGeometryData) {
+								point_leftbottom = "POINT(" + rs_objekte.getDouble("leftbottom_xpos") + " " + rs_objekte.getDouble("leftbottom_ypos") + ")";
+								point_righttop = "POINT(" + rs_objekte.getDouble("righttop_xpos") + " " + rs_objekte.getDouble("righttop_ypos") + ")";
+							}
 							Street new_street =  new Street("osm", "way", local_osm_validkeyvalue, rs_objekte.getLong("id"), 
 									temp_aktstrasse, rs_objekte.getString("streetref"), rs_objekte.getString("postalcode"),
 									temp_linecenterpoint, temp_point_source, point_leftbottom, point_righttop);
@@ -276,11 +287,13 @@ public class OsmDataReader {
 			}
 			sqlbefehl_objekte += " osm_id AS id, highway as highwaytype, tags->'place' as place,"
 				+ " tags->'postal_code' AS postalcode,"
-				+ " ST_AsText(ST_Transform(ST_Centroid(way),4326)) as linecenterpoint,"
-				+ " ST_Xmin(Box2D(ST_Transform(way,4326))) AS leftbottom_xpos,"
-				+ " ST_Ymin(Box2D(ST_Transform(way,4326))) AS leftbottom_ypos,"
-				+ " ST_Xmax(Box2D(ST_Transform(way,4326))) AS righttop_xpos,"
-				+ " ST_Ymax(Box2D(ST_Transform(way,4326))) AS righttop_ypos";
+				+ " ST_AsText(ST_Transform(ST_Centroid(way),4326)) as linecenterpoint";
+			if(examineStreetGeometryData) {
+				sqlbefehl_objekte += ", ST_Xmin(Box2D(ST_Transform(way,4326))) AS leftbottom_xpos,"
+					+ " ST_Ymin(Box2D(ST_Transform(way,4326))) AS leftbottom_ypos,"
+					+ " ST_Xmax(Box2D(ST_Transform(way,4326))) AS righttop_xpos,"
+					+ " ST_Ymax(Box2D(ST_Transform(way,4326))) AS righttop_ypos";
+			}
 			if(! akt_parameterstreetref.equals(""))
 				sqlbefehl_objekte += ", tags->'" + akt_parameterstreetref + "' AS streetref";
 			else
@@ -300,8 +313,7 @@ public class OsmDataReader {
 			}
 			sqlbefehl_objekte += " ORDER BY name;";
 	
-			logger.log(Level.FINEST, "sqlbefehl_objekte (osm closed ways) ==="+sqlbefehl_objekte+"===");
-			//stmt_objekte = con_mapnik.createStatement();
+			//logger.log(Level.FINEST, "sqlbefehl_objekte (osm closed ways) ==="+sqlbefehl_objekte+"===");
 	
 			try {
 				local_query_start = new java.util.Date();
@@ -312,8 +324,9 @@ public class OsmDataReader {
 				logger.log(Level.FINEST, "TIME single-step closed osm-ways in ms. "+(local_query_end.getTime()-local_query_start.getTime()));
 			}
 			catch( SQLException sqlerror) {
-				logger.log(Level.INFO, "ERROR: SQL-Exception during 1a. Action - get all closed way streets from osm, sql-statement was ==="+sqlbefehl_objekte+"=== municipality   id==="+evaluation.getmunicipalityDbId()+"===  name ==="+evaluation.getMunicipality()+"==="); 
-				logger.log(Level.INFO, sqlerror.toString());
+				logger.log(Level.SEVERE, "ERROR: SQL-Exception during 1a. Action - get all closed way streets from osm, sql-statement was ==="+sqlbefehl_objekte+"=== municipality   id==="+evaluation.getmunicipalityDbId()+"===  name ==="+evaluation.getMunicipality()+"==="); 
+				logger.log(Level.SEVERE, sqlerror.toString());
+//TODO stored errors, like org.postgresql.util.PSQLException: ERROR: GEOS covers() threw an error!
 				System.out.println("ERROR: SQL-Exception during 1a. Action - get all closed way streets from osm, sql-statement was ==="+sqlbefehl_objekte+"=== municipality   id==="+evaluation.getmunicipalityDbId()+"===  name ==="+evaluation.getMunicipality()+"===");
 				System.out.println(sqlerror.toString());
 				try {
@@ -321,15 +334,13 @@ public class OsmDataReader {
 						rs_objekte.close();
 					if(stmt_objekte != null)
 						stmt_objekte.close();
-					if(con_mapnik != null)
-						con_mapnik.close();
-					return null;
+					return new StreetCollection();
 				} 
 				catch(Exception e) {
 					logger.log(Level.SEVERE, "General Exception, Details: " + e.toString());
 					System.out.println("General Exception, Details: " + e.toString());
 				}
-				return null;
+				return new StreetCollection();
 			}
 
 			while( rs_objekte.next() ) {
@@ -439,8 +450,12 @@ public class OsmDataReader {
 					String temp_point_source = "";
 					if( ! temp_linecenterpoint.equals(""))
 						temp_point_source = "OSM";
-					String point_leftbottom = "POINT(" + rs_objekte.getDouble("leftbottom_xpos") + " " + rs_objekte.getDouble("leftbottom_ypos") + ")";
-					String point_righttop = "POINT(" + rs_objekte.getDouble("righttop_xpos") + " " + rs_objekte.getDouble("righttop_ypos") + ")";
+					String point_leftbottom = null;;
+					String point_righttop = null;
+					if(examineStreetGeometryData) {
+						point_leftbottom = "POINT(" + rs_objekte.getDouble("leftbottom_xpos") + " " + rs_objekte.getDouble("leftbottom_ypos") + ")";
+						point_righttop = "POINT(" + rs_objekte.getDouble("righttop_xpos") + " " + rs_objekte.getDouble("righttop_ypos") + ")";
+					}
 					Street new_street =  new Street("osm", "way", local_osm_validkeyvalue, rs_objekte.getLong("id"), 
 							temp_aktstrasse, rs_objekte.getString("streetref"), rs_objekte.getString("postalcode"),
 							temp_linecenterpoint, temp_point_source, point_leftbottom, point_righttop);
@@ -467,11 +482,13 @@ public class OsmDataReader {
 				sqlbefehl_objekte += " tags->'"+act_name+"' AS "+act_name+",";
 			}
 			sqlbefehl_objekte += " osm_id as id, tags->'place' as place, tags->'postal_code' AS postalcode,"
-				+ " ST_AsText(ST_Transform(way,4326)) as point,"
-				+ " ST_X(ST_Transform(way,4326)) AS leftbottom_xpos,"
-				+ " ST_Y(ST_Transform(way,4326)) AS leftbottom_ypos,"
-				+ " ST_X(ST_Transform(way,4326)) AS righttop_xpos,"
-				+ " ST_Y(ST_Transform(way,4326)) AS righttop_ypos";
+				+ " ST_AsText(ST_Transform(way,4326)) as point";
+			if(examineStreetGeometryData) {
+				sqlbefehl_objekte += ", ST_X(ST_Transform(way,4326)) AS leftbottom_xpos,"
+					+ " ST_Y(ST_Transform(way,4326)) AS leftbottom_ypos,"
+					+ " ST_X(ST_Transform(way,4326)) AS righttop_xpos,"
+					+ " ST_Y(ST_Transform(way,4326)) AS righttop_ypos";
+			}
 			if(! akt_parameterstreetref.equals(""))
 				sqlbefehl_objekte += ", tags->'" + akt_parameterstreetref + "' AS streetref";
 			else
@@ -491,8 +508,7 @@ public class OsmDataReader {
 			}
 			sqlbefehl_objekte += " ORDER BY name;";
 	
-			logger.log(Level.FINEST, "sqlbefehl_objekte (places from osm nodes) ==="+sqlbefehl_objekte+"===");
-			//stmt_objekte = con_mapnik.createStatement();
+			//logger.log(Level.FINEST, "sqlbefehl_objekte (places from osm nodes) ==="+sqlbefehl_objekte+"===");
 			rs_objekte = stmt_objekte.executeQuery( sqlbefehl_objekte );
 			while( rs_objekte.next() ) {
 				anzahl_datensaetze_osmplaces++;
@@ -552,8 +568,12 @@ public class OsmDataReader {
 							if( ! temp_point.equals("")) {
 								temp_point_source = "OSM";
 							}
-							String point_leftbottom = "POINT(" + rs_objekte.getDouble("leftbottom_xpos") + " " + rs_objekte.getDouble("leftbottom_ypos") + ")";
-							String point_righttop = "POINT(" + rs_objekte.getDouble("righttop_xpos") + " " + rs_objekte.getDouble("righttop_ypos") + ")";
+							String point_leftbottom = null;
+							String point_righttop = null;
+							if(examineStreetGeometryData) {
+								point_leftbottom = "POINT(" + rs_objekte.getDouble("leftbottom_xpos") + " " + rs_objekte.getDouble("leftbottom_ypos") + ")";
+								point_righttop = "POINT(" + rs_objekte.getDouble("righttop_xpos") + " " + rs_objekte.getDouble("righttop_ypos") + ")";
+							}
 							Street new_street =  new Street("osm", "node", local_osm_validkeyvalue, rs_objekte.getLong("id"), 
 									temp_aktstrasse, rs_objekte.getString("streetref"), rs_objekte.getString("postalcode"), 
 									temp_point, temp_point_source, point_leftbottom, point_righttop);
@@ -567,19 +587,23 @@ public class OsmDataReader {
 			}
 			rs_objekte.close();
 			stmt_objekte.close();
-			con_mapnik.close();
+			//con_mapnik.close();
+
+			logger.log(Level.FINE, "   ----------------------------------------------------------------------------------------");
+			logger.log(Level.FINE, "   ----------------------------------------------------------------------------------------");
 		}
 		catch( SQLException sqle) {
-			logger.log(Level.INFO, sqle.toString());
+			logger.log(Level.SEVERE, "SQL-Exception occured, Details " + sqle.toString());
+//TODO stored errors, like org.postgresql.util.PSQLException: ERROR: GEOS covers() threw an error!
 			System.out.println(sqle.toString());
 			try {
 				if(rs_objekte != null)
 					rs_objekte.close();
 				if(stmt_objekte != null)
 					stmt_objekte.close();
-				if(con_mapnik != null)
-					con_mapnik.close();
-				return null;
+				//if(con_mapnik != null)
+				//	con_mapnik.close();
+				return new StreetCollection();
 			} 
 			catch(Exception e) {
 				logger.log(Level.SEVERE, "General Exception, Details: " + e.toString());
