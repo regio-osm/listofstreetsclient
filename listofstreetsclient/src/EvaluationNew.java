@@ -242,9 +242,8 @@ public class EvaluationNew {
 	
 	private void storeEvaluation(StreetCollection streets) {
 
-Integer evaluationOverviewId = -1;		
+		Integer evaluationOverviewId = -1;		
 		
-		DateFormat time_formatter_iso8601 = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ");		// in iso8601 format, with timezone
 		DateFormat time_formatter_iso8601wozone = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");		// in iso8601 format, without timezone
 		DateFormat time_formatter_dateonly = new SimpleDateFormat("yyyy-MM-dd");
 
@@ -255,7 +254,7 @@ Integer evaluationOverviewId = -1;
 
 		try {
 			Integer next_full_overview_id = -1;
-			if((1==0) && (this.getEvaluationTypeFull())) {
+			if(this.getEvaluationTypeFull()) {
 
 				if(this.getEvaluationText().equals("")) {
 					java.util.Date temp_time = new java.util.Date();
@@ -271,15 +270,16 @@ Integer evaluationOverviewId = -1;
 					next_full_overview_id = 1 + rs_max_full_overview_id.getInt("max_full_number");
 					logger.log(Level.FINE, "got already used max number for full evaluation type ==="+next_full_overview_id+"===");
 				}
-
+	
 				String insertbefehl_evalationoverview = "INSERT INTO evaluation_overview (evaluation_first_id, evaluation_last_id, description, evaluation_type, evaluation_number) ";
-				insertbefehl_evalationoverview += "VALUES (-1, -1, '" + this.getEvaluationText() +"', 'full', " + next_full_overview_id + ");";
+				insertbefehl_evalationoverview += "VALUES (-1, -1, ?, 'full', ?);";
 				logger.log(Level.FINE, "insertbefehl_evalationoverview ==="+insertbefehl_evalationoverview+"===");
-				Statement stmt_insertevalationoverview = con_listofstreets.createStatement();
 				String[] dbautogenkeys = { "id" };
+				PreparedStatement stmt_insertevalationoverview = con_listofstreets.prepareStatement(insertbefehl_evalationoverview, dbautogenkeys);
+				stmt_insertevalationoverview.setString(1, this.getEvaluationText());
+				stmt_insertevalationoverview.setLong(2, next_full_overview_id);
 				try {
-					stmt_insertevalationoverview.executeUpdate( insertbefehl_evalationoverview, dbautogenkeys );
-
+					stmt_insertevalationoverview.execute();
 					ResultSet rs_getautogenkeys = stmt_insertevalationoverview.getGeneratedKeys();
 				    while (rs_getautogenkeys.next()) {
 				    	logger.log(Level.FINE, "Key returned from getGeneratedKeys():"
@@ -288,7 +288,7 @@ Integer evaluationOverviewId = -1;
 				        logger.log(Level.FINE, "got new id from table evalation_overview, id ===" + evaluationOverviewId + "===");
 				    } 
 				    rs_getautogenkeys.close();
-
+				    stmt_insertevalationoverview.close();
 				}
 				catch( SQLException e) {
 					logger.log(Level.INFO, "ERROR: during insert in table evaluation_overview, insert code was ==="+insertbefehl_evalationoverview+"===");
@@ -297,7 +297,7 @@ Integer evaluationOverviewId = -1;
 					System.out.println(e.toString());
 				}
 			}
-
+	
 			
 			
 			String streetresultwithGeomInsertSql = "INSERT INTO evaluation_street"
@@ -408,8 +408,8 @@ Long local_street_id = -1L;
 System.out.println("missing street_id at actual street ===" + activestreet.name + "===");
 				}
 
-				if(		!activestreet.point_leftbottom.equals("")
-					&&	!activestreet.point_righttop.equals("")) {
+				if(		(activestreet.point_leftbottom != null) && !activestreet.point_leftbottom.equals("")
+					&&	(activestreet.point_righttop != null) && !activestreet.point_righttop.equals("")) {
 					streetresultwithGeomInsertStmt.setLong(1, evaluationId);
 					streetresultwithGeomInsertStmt.setLong(2, local_street_id);
 					streetresultwithGeomInsertStmt.setString(3, activestreet.name);
@@ -492,7 +492,6 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 		java.util.Date time_program_startedtime = new java.util.Date();
 		DateFormat time_formatter_mesz = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss z");
 		DateFormat time_formatter_iso8601 = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ");		// in iso8601 format, with timezone
-		DateFormat time_formatter_dateonly = new SimpleDateFormat("yyyy-MM-dd");
 
 
 		try {
@@ -555,9 +554,6 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 			StreetCollection liststreets = new StreetCollection();
 			StreetCollection mergedstreets = new StreetCollection();
 
-			java.util.Date time_act_municipality_starttime = null;
-			java.util.Date time_last_step = null;
-			java.util.Date time_now = null;
 
 			java.util.Date time_evaluation = null;
 			java.util.Date time_osmdb = null;
@@ -634,6 +630,7 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 						args_ok_count += 2;
 					} else {
 						System.out.println("unknown Parameter ===" + args[argsi] + "===");
+						return;
 					}
 				}
 				logger.log(Level.INFO, " Program-Call with arguments for main query filtering, here WHERE-Query part ==="+sqlbefehl_jobs_whereclause+"===");
@@ -661,16 +658,11 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 
 
 
-			java.util.Date time_detail_start = null;
-			java.util.Date time_detail_end  = null;
 
 			logger.log(Level.FINE, "hole SQL-Statement Job-Suche ==="+sqlbefehl_jobs+"===");
 			Statement stmt_jobs = con_listofstreets.createStatement();
 			ResultSet rs_jobs = stmt_jobs.executeQuery( sqlbefehl_jobs );
-			String akt_municipality_id = "";
 			String akt_jobname = "";
-			String akt_gebietsgeometrie = "";
-			String akt_parameterstreetref = "";
 			Integer municipality_count = 0;
 			while(rs_jobs.next()) {
 
@@ -706,20 +698,7 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 					return;
 				}
 				
-				time_act_municipality_starttime = new java.util.Date();
-				time_last_step = time_act_municipality_starttime;
-
 				municipality_count++;
-
-				
-
-				akt_municipality_id = rs_jobs.getString("id");
-				akt_gebietsgeometrie = rs_jobs.getString("polygon");
-				akt_parameterstreetref = rs_jobs.getString("parameterstreetref");
-
-
-					// Array of all name-variants, which will be requested by sql-statement; most important at END
-				String[] keyvariation_namelist = {"old_name", "loc_name", "alt_name", "official_name", "name"};
 
 				if(rs_jobs.getString("polygon_state") != null) {
 					if(		( !rs_jobs.getString("polygon_state").equals("ok"))
@@ -767,8 +746,6 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 
 
 					osmstreets = osmreader.ReadDataFromDB(evaluation);
-					//liststreets = listreader.ReadListFromDB(evaluation);
-					//evaluatedstreets = liststreets.merge(osmstreets);
 
 					listreader.setExistingStreetlist(osmstreets);
 					mergedstreets = listreader.ReadListFromDB(evaluation);

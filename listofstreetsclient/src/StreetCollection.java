@@ -1,5 +1,6 @@
 
 
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -28,21 +29,44 @@ public class StreetCollection {
 		fieldsForUniqueStreet = EvaluationNew.FieldsForUniqueStreet.STREET;
 	}
 
+	public Integer size() {
+		Integer count = 0;
+    	for (Map.Entry<String,Street> entry : cache.entrySet()) {
+    		count++;
+    	}
+		return count;
+	}
+
+	public String getNameForIdenticalcheck(String standardname) {
+		if(streetnameidenticallevel == EvaluationNew.StreetNameIdenticalLevel.EXACTLY) {
+			return standardname;
+		} else {
+			Charset iso88591charset = Charset.forName("ISO-8859-1");
+			byte[] iso88591Data1 = standardname.getBytes(iso88591charset);
+			String string1 = new String ( iso88591Data1, iso88591charset );
+			string1 = utf8_to_chars26(string1).toUpperCase();
+			string1 = string1.replaceAll(" +", " ");
+			return string1;
+		}
+	}
+	
 	public String key(Street street) {
 		String keystring = "";
 
+		String streetname = getNameForIdenticalcheck(street.name);
+		
 		if(fieldsForUniqueStreet == EvaluationNew.FieldsForUniqueStreet.STREET) {
-			keystring = street.name;
+			keystring = streetname;
 		} else if(fieldsForUniqueStreet == EvaluationNew.FieldsForUniqueStreet.STREET_REF) {
-			keystring = street.name;
+			keystring = streetname;
 			if(street.streetref != null)
 				keystring += street.streetref;
 		} else if(fieldsForUniqueStreet == EvaluationNew.FieldsForUniqueStreet.STREET_POSTCODE) {
-			keystring = street.name;
+			keystring = streetname;
 			if(street.postcode != null)
 				keystring += street.postcode;
 		} else if(fieldsForUniqueStreet == EvaluationNew.FieldsForUniqueStreet.STREET_POSTCODE_REF) {
-			keystring = street.name;
+			keystring = streetname;
 			if(street.postcode != null)
 				keystring += street.postcode;
 			if(street.streetref != null)
@@ -54,6 +78,8 @@ public class StreetCollection {
 	}
 
 	public Street get(Street searchstreet) {
+			// check for key (although optionally with some normalization) could be not enough for lists like in Brasil
+			// If smoother checks are necessary, look on old code in private repo in class StreetObject, method check_if_identical for earlier solution with levenshtein
 		String key = this.key(searchstreet);
 		if(cache.get(key) != null)
 			return cache.get(key);
@@ -130,5 +156,40 @@ public class StreetCollection {
 		System.out.println("strassen_osm_missing_local: " + strassen_osm_missing_local);
     	
 		return null;
+	}
+
+
+	private String utf8_to_chars26(String intext) {
+		intext = intext.replace("1", "eins");
+		intext = intext.replace("2", "zwei");
+		intext = intext.replace("3", "DREI");
+		intext = intext.replace("4", "vier");
+		intext = intext.replace("5", "fuen");
+		intext = intext.replace("6", "sech");
+		intext = intext.replace("7", "sieb");
+		intext = intext.replace("8", "acht");
+		intext = intext.replace("9", "neun");
+		intext = intext.replace("0", "null");
+
+		intext = intext.replace("Â", "A");
+		intext = intext.replace("Á", "A");
+		intext = intext.replace("Ä", "A");
+		intext = intext.replace("á", "a");
+		intext = intext.replace("â", "a");
+		intext = intext.replace("ã", "a");
+		intext = intext.replace("ä", "a");
+		intext = intext.replace("ç", "c");
+		intext = intext.replace("é", "e");
+		intext = intext.replace("ê", "e");
+		intext = intext.replace("í", "i");
+		intext = intext.replace("Ö", "O");
+		intext = intext.replace("ö", "o");
+		intext = intext.replace("ó", "o");
+		intext = intext.replace("õ", "o");
+		intext = intext.replace("ô", "o");
+		intext = intext.replace("Ü", "U");
+		intext = intext.replace("ü", "u");
+		intext = intext.replace("ú", "u");
+		return intext;
 	}
 }

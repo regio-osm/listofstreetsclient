@@ -30,6 +30,10 @@ public class Street {
 		Borderpoint return_righttop = new Borderpoint();
 		Borderpoint[] returnarray = new Borderpoint[2];
 		
+		if((leftbottomtext == null) || leftbottomtext.equals("")) {
+			return returnarray;
+		}
+				
 		// bbox String has the form BOX(13.8382605689486 53.7045317757763,13.8392753957251 53.7047286850151)
 		String searchtext = "(";
 		Integer starttextpos = leftbottomtext.indexOf(searchtext);
@@ -82,10 +86,15 @@ public class Street {
 	}
 
 	private String[] unionBoundingbox(Street newstreet) {
+		String[] return_array = new String[2];
+
+		if((this.point_leftbottom == null) || this.point_leftbottom.equals("")) {
+			return return_array;
+		}
+
 		Borderpoint[] this_points = getBorderPositions(this.point_leftbottom, this.point_righttop);
 		Borderpoint[] newstreet_points = getBorderPositions(newstreet.point_leftbottom, newstreet.point_righttop);
-		String[] return_array = new String[2];
-		
+
 		if(		(this_points[0].xpos != 0.0D) && (this_points[0].ypos != 0.0D)
 			&&	(this_points[1].xpos != 0.0D) && (this_points[1].ypos != 0.0D)
 			&&	(newstreet_points[0].xpos != 0.0D) && (newstreet_points[0].ypos != 0.0D)
@@ -158,9 +167,11 @@ public class Street {
 				this.osm_id += "," + "" + updatestreet.osm_id;
 				this.osm_type += "," + updatestreet.osm_type;
 				this.osm_objectkeyvalue += "," + updatestreet.osm_objectkeyvalue;
-				String[] borderpointsastext = this.unionBoundingbox(updatestreet);
-				this.point_leftbottom = borderpointsastext[0];
-				this.point_righttop = borderpointsastext[1];
+				if(updatestreet.point_leftbottom != null) {
+					String[] borderpointsastext = this.unionBoundingbox(updatestreet);
+					this.point_leftbottom = borderpointsastext[0];
+					this.point_righttop = borderpointsastext[1];
+				}
 			}
 		} else {
 			if(this.street_id.equals(""))
