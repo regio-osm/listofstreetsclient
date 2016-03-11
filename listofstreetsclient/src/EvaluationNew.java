@@ -57,8 +57,14 @@
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.text.*;
+import java.util.Date;
 import java.util.Map;
 import java.util.logging.*;
 
@@ -99,12 +105,17 @@ public class EvaluationNew {
 	private boolean streetrefMustBeUsedForIdenticaly = false;
 	private String streetrefOSMKey = "";
 	private FieldsForUniqueStreet fieldsForUniqueStreet = FieldsForUniqueStreet.STREET;
-	private java.util.Date osmdbTimestamp = null;
-	private java.util.Date evaluationTimestamp = null;
+	private Date osmdbTimestamp = null;
+	private Date evaluationTimestamp = null;
 	private boolean evaluationTypeFull = false;
 	private String evaluationText = "";
+	private Integer fullEvaluationId = -1;
 
 	public static final Logger logger = Logger.getLogger(EvaluationNew.class.getName());
+	
+	static Connection con_listofstreets = null;
+	static Connection con_mapnik = null;
+	static Applicationconfiguration configuration = new Applicationconfiguration();
 	
 	public enum FieldsForUniqueStreet {
 		STREET, STREET_REF, STREET_POSTCODE, STREET_POSTCODE_REF;
@@ -114,6 +125,53 @@ public class EvaluationNew {
 		ROUGHLY, EXACTLY;
 	}
 
+	/**
+	 * Initialise class properties
+	 * Attention: property fullEvaluationId will not be reseted
+	 */
+	public void initialize() {
+		streetnameIdenticalLevel = StreetNameIdenticalLevel.EXACTLY;
+		country = "";
+		countryDbId = -1L;
+		municipality = "";
+		municipalityDbId = -1L;
+		municipalityGeometryBinaryString = "";
+		officialkeysId = "";
+		polygonstate = "";
+		streetrefMustBeUsedForIdenticaly = false;
+		streetrefOSMKey = "";
+		fieldsForUniqueStreet = FieldsForUniqueStreet.STREET;
+		osmdbTimestamp = null;
+		evaluationTimestamp = null;
+		evaluationTypeFull = false;
+		evaluationText = "";
+	}
+
+
+	
+	/**
+	 * 
+	 */
+	public void close() {
+			try {
+				if(con_listofstreets != null) {
+					logger.log(Level.INFO, "Connection to DB " + con_listofstreets.getMetaData().getURL() + " will be closed.");
+					con_listofstreets.close();
+				}
+				if(con_mapnik != null) {
+					logger.log(Level.INFO, "Connection to local DB " + con_mapnik.getMetaData().getURL() + " will be closed.");
+					con_mapnik.close();
+				}
+			}
+			catch( SQLException sqle) {
+				logger.log(Level.SEVERE, "SQL-Exception occured, when tried to close DB Connection, details follow ..");
+				logger.log(Level.SEVERE, sqle.toString());
+				System.out.println("SQL-Exception occured, when tried to close DB Connection, details follow ..");
+				System.out.println(sqle.toString());
+			}
+	}
+
+	
 	public StreetNameIdenticalLevel getStreetnameIdenticalLevel() {
 		return streetnameIdenticalLevel;
 	}
@@ -158,16 +216,20 @@ public class EvaluationNew {
 		return fieldsForUniqueStreet;
 	}
 	
-	public java.util.Date getOsmdbTimestamp() {
+	public Date getOsmdbTimestamp() {
 		return this.osmdbTimestamp;
 	}
 	
-	public java.util.Date getEvaluationTimestamp() {
+	public Date getEvaluationTimestamp() {
 		return this.evaluationTimestamp;
 	}
 
 	public boolean getEvaluationTypeFull() {
 		return this.evaluationTypeFull;
+	}
+
+	public Integer getFullEvaluationId() {
+		return this.fullEvaluationId;
 	}
 
 	public String getEvaluationText() {
@@ -222,11 +284,15 @@ public class EvaluationNew {
 		this.fieldsForUniqueStreet = fields;
 	}
 	
-	public void setOsmdbTimestamp(java.util.Date timestamp) {
+	public void setOsmdbTimestamp(Date timestamp) {
 		this.osmdbTimestamp = timestamp;
 	}
 	
-	public void setEvaluationTimestamp(java.util.Date timestamp) {
+	public void setFullEvaluationId(Integer id) {
+		this.fullEvaluationId = id;
+	}
+	
+	public void setEvaluationTimestamp(Date timestamp) {
 		this.evaluationTimestamp = timestamp;
 	}
 		
@@ -242,7 +308,6 @@ public class EvaluationNew {
 	
 	private void storeEvaluation(StreetCollection streets) {
 
-		Integer evaluationOverviewId = -1;		
 		
 		DateFormat time_formatter_iso8601wozone = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");		// in iso8601 format, without timezone
 		DateFormat time_formatter_dateonly = new SimpleDateFormat("yyyy-MM-dd");
@@ -252,70 +317,64 @@ public class EvaluationNew {
 		Integer streets_identical_count = 0;
 		Integer streets_osmonly_count = 0;
 
+		logger.log(Level.INFO, "   ----------------------------------------------------------------------------------------");
+		logger.log(Level.INFO, "   ----------------------------------------------------------------------------------------");
+		logger.log(Level.INFO, "      Store Evaluation Data - Job  =" + getMunicipality() +"=   muni-id: "+getmunicipalityDbId());
+		
 		try {
-			Integer next_full_overview_id = -1;
 			if(this.getEvaluationTypeFull()) {
 
-				if(this.getEvaluationText().equals("")) {
-					java.util.Date temp_time = new java.util.Date();
-					this.setEvaluationText(time_formatter_dateonly.format(temp_time));
-					logger.log(Level.FINE, "test zeit onlydate ==="+this.getEvaluationText()+"===");
-				}
 
-				String sql_max_full_overview_id = "SELECT MAX(evaluation_number) AS max_full_number FROM evaluation_overview where evaluation_type = 'full';";
-				logger.log(Level.FINE, "hole SQL-Statement sql_max_full_overview_id ==="+sql_max_full_overview_id+"===");
-				Statement stmt_max_full_overview_id = con_listofstreets.createStatement();
-				ResultSet rs_max_full_overview_id = stmt_max_full_overview_id.executeQuery( sql_max_full_overview_id );
-				if(rs_max_full_overview_id.next()) {
-					next_full_overview_id = 1 + rs_max_full_overview_id.getInt("max_full_number");
-					logger.log(Level.FINE, "got already used max number for full evaluation type ==="+next_full_overview_id+"===");
-				}
-	
-				String insertbefehl_evalationoverview = "INSERT INTO evaluation_overview (evaluation_first_id, evaluation_last_id, description, evaluation_type, evaluation_number) ";
-				insertbefehl_evalationoverview += "VALUES (-1, -1, ?, 'full', ?);";
-				logger.log(Level.FINE, "insertbefehl_evalationoverview ==="+insertbefehl_evalationoverview+"===");
-				String[] dbautogenkeys = { "id" };
-				PreparedStatement stmt_insertevalationoverview = con_listofstreets.prepareStatement(insertbefehl_evalationoverview, dbautogenkeys);
-				stmt_insertevalationoverview.setString(1, this.getEvaluationText());
-				stmt_insertevalationoverview.setLong(2, next_full_overview_id);
-				try {
+				if(getFullEvaluationId() == -1) {
+					if(this.getEvaluationText().equals("")) {
+						Date temp_time = new Date();
+						this.setEvaluationText(time_formatter_dateonly.format(temp_time));
+						logger.log(Level.FINE, "test zeit onlydate ==="+this.getEvaluationText()+"===");
+					}
+
+					Integer local_next_evaluationumber = -1;
+					String sql_max_full_overview_id = "SELECT MAX(evaluation_number) AS max_full_number FROM evaluation_overview where evaluation_type = 'full';";
+					logger.log(Level.FINE, "hole SQL-Statement sql_max_full_overview_id ==="+sql_max_full_overview_id+"===");
+					Statement stmt_max_full_overview_id = con_listofstreets.createStatement();
+					ResultSet rs_max_full_overview_id = stmt_max_full_overview_id.executeQuery( sql_max_full_overview_id );
+					if(rs_max_full_overview_id.next()) {
+						local_next_evaluationumber = 1 + rs_max_full_overview_id.getInt("max_full_number");
+						logger.log(Level.FINE, "got already used max number for full evaluation type ===" + local_next_evaluationumber + "===");
+					}
+		
+					String insertbefehl_evalationoverview = "INSERT INTO evaluation_overview (evaluation_first_id, evaluation_last_id, description, evaluation_type, evaluation_number) ";
+					insertbefehl_evalationoverview += "VALUES (-1, -1, ?, 'full', ?);";
+					logger.log(Level.FINE, "insertbefehl_evalationoverview ==="+insertbefehl_evalationoverview+"===");
+					String[] dbautogenkeys = { "id" };
+					PreparedStatement stmt_insertevalationoverview = con_listofstreets.prepareStatement(insertbefehl_evalationoverview, dbautogenkeys);
+					stmt_insertevalationoverview.setString(1, this.getEvaluationText());
+					stmt_insertevalationoverview.setLong(2, local_next_evaluationumber);
 					stmt_insertevalationoverview.execute();
-					ResultSet rs_getautogenkeys = stmt_insertevalationoverview.getGeneratedKeys();
-				    while (rs_getautogenkeys.next()) {
-				    	logger.log(Level.FINE, "Key returned from getGeneratedKeys():"
-				            + rs_getautogenkeys.getInt(1));
-				    	evaluationOverviewId = rs_getautogenkeys.getInt("id");
-				        logger.log(Level.FINE, "got new id from table evalation_overview, id ===" + evaluationOverviewId + "===");
-				    } 
-				    rs_getautogenkeys.close();
+
+					ResultSet insertevalationoverviewRS = stmt_insertevalationoverview.getGeneratedKeys();
+				    while (insertevalationoverviewRS.next()) {
+				    	logger.log(Level.FINEST, "Key returned from getGeneratedKeys():"
+				            + insertevalationoverviewRS.getLong(1));
+				    	setFullEvaluationId(insertevalationoverviewRS.getInt("id"));
+				    }
+				    insertevalationoverviewRS.close();
 				    stmt_insertevalationoverview.close();
 				}
-				catch( SQLException e) {
-					logger.log(Level.INFO, "ERROR: during insert in table evaluation_overview, insert code was ==="+insertbefehl_evalationoverview+"===");
-					logger.log(Level.INFO, e.toString());
-					System.out.println("ERROR: during insert in table evaluation_overview, insert code was ==="+insertbefehl_evalationoverview+"===");
-					System.out.println(e.toString());
-				}
 			}
-	
-			
-			
+
+
 			String streetresultwithGeomInsertSql = "INSERT INTO evaluation_street"
 				+ " (evaluation_id, street_id, name, streetref, osm_id, osm_type, osm_keyvalue, osm_point_leftbottom, osm_point_righttop)"
 				+ " VALUES (?, ?, ?, ?, ?, ?, ?, ST_Geomfromtext(?, 4326), ST_Geomfromtext(?, 4326));";
 			PreparedStatement streetresultwithGeomInsertStmt = con_listofstreets.prepareStatement(streetresultwithGeomInsertSql);
-			System.out.println("Insert street result withGeom string ===" + streetresultwithGeomInsertSql + "===");
 			logger.log(Level.FINEST, "insert sql for evaluation_street row withGeom ===" + streetresultwithGeomInsertSql + "===");
 
 			String streetresultwithoutGeomInsertSql = "INSERT INTO evaluation_street"
 				+ " (evaluation_id, street_id, name, streetref, osm_id, osm_type, osm_keyvalue, osm_point_leftbottom, osm_point_righttop)"
 				+ " VALUES (?, ?, ?, ?, ?, ?, ?, null, null);";
 			PreparedStatement streetresultwithoutGeomInsertStmt = con_listofstreets.prepareStatement(streetresultwithoutGeomInsertSql);
-			System.out.println("Insert street result withoutGeom string ===" + streetresultwithoutGeomInsertSql + "===");
 			logger.log(Level.FINEST, "insert sql for evaluation_street row withoutGeom ===" + streetresultwithoutGeomInsertSql + "===");
 
-
-			
 			Long evaluationId = -1L;
 			String evaluationInsertSql = "INSERT INTO evaluation (country_id, municipality_id, evaluation_overview_id,"
 				+ " number_liststreets, number_osmstreets, number_osmsinglestreets,number_missingstreets,tstamp, osmdb_tstamp)"
@@ -323,27 +382,16 @@ public class EvaluationNew {
 
 			String[] dbautogenkeys = { "id" };
 			PreparedStatement evaluationInsertStmt = con_listofstreets.prepareStatement(evaluationInsertSql, dbautogenkeys);
-			System.out.println("Insert evaluation string ===" + evaluationInsertSql + "===");
 			logger.log(Level.FINEST, "insert sql for evaluation ===" + evaluationInsertSql + "===");
 			evaluationInsertStmt.setLong(1, this.getCountryDbId());
 			evaluationInsertStmt.setLong(2, this.getmunicipalityDbId());
-			evaluationInsertStmt.setLong(3, evaluationOverviewId);
+			evaluationInsertStmt.setInt(3, this.getFullEvaluationId());
 			evaluationInsertStmt.setString(4, time_formatter_iso8601wozone.format(this.getEvaluationTimestamp()));
 			evaluationInsertStmt.setString(5, time_formatter_iso8601wozone.format(this.getOsmdbTimestamp()));
-			System.out.println("evaluationInsertStmt: [country_id] " + this.getCountryDbId() + "  [muni_id] " + this.getmunicipalityDbId()
-				+ "  [eval_overview_id] " + evaluationOverviewId + "  [eval_tstamp] " + time_formatter_iso8601wozone.format(this.getEvaluationTimestamp())
+			logger.log(Level.FINE, "evaluationInsertStmt: [country_id] " + this.getCountryDbId() + "  [muni_id] " + this.getmunicipalityDbId()
+				+ "  [eval_overview_id] " + getFullEvaluationId() + "  [eval_tstamp] " + time_formatter_iso8601wozone.format(this.getEvaluationTimestamp())
 				+ "  [osmdb_tstamp] " +time_formatter_iso8601wozone.format(this.getOsmdbTimestamp()));
 
-			String evaluationUpdateSql = "UPDATE evaluation SET"
-				+ " number_liststreets = ?, number_osmstreets = ?, number_missingstreets = ?,"
-				+ " number_osmsinglestreets = ?  WHERE id = ?;";
-			logger.log(Level.FINE, "update_evaluation ===" + evaluationUpdateSql + "===");
-			PreparedStatement evaluationUpdateStmt = con_listofstreets.prepareStatement(evaluationUpdateSql);
-
-				
-System.out.println("para 4 ===" + time_formatter_iso8601wozone.format(this.getEvaluationTimestamp()) + "===");
-System.out.println("para 5 ===" + time_formatter_iso8601wozone.format(this.getOsmdbTimestamp()) + "===");
-			
 			try {
 				evaluationInsertStmt.execute();
 				ResultSet evaluationInsertRS = evaluationInsertStmt.getGeneratedKeys();
@@ -361,6 +409,14 @@ System.out.println("para 5 ===" + time_formatter_iso8601wozone.format(this.getOs
 				System.out.println(e.toString());
 			}
 		    evaluationInsertStmt.close();
+
+
+			String evaluationUpdateSql = "UPDATE evaluation SET"
+				+ " number_liststreets = ?, number_osmstreets = ?, number_missingstreets = ?,"
+				+ " number_osmsinglestreets = ?  WHERE id = ?;";
+			logger.log(Level.FINEST, "update_evaluation ===" + evaluationUpdateSql + "===");
+			PreparedStatement evaluationUpdateStmt = con_listofstreets.prepareStatement(evaluationUpdateSql);
+
 
 			con_listofstreets.setAutoCommit(false);
 
@@ -395,17 +451,17 @@ System.out.println("para 5 ===" + time_formatter_iso8601wozone.format(this.getOs
 					}
 				}
 
-Long local_street_id = -1L;
+				Long local_street_id = -1L;
 				if( ! activestreet.street_id.equals("")) {
 					if(activestreet.street_id.indexOf(",") != -1) {
-						System.out.println("WARNING: more than one street row found, take only first one ==="
+						logger.log(Level.INFO, "WARNING: more than one street row found, take only first one ==="
 							+ activestreet.street_id.substring(0,activestreet.street_id.indexOf(","))+"=== from list ==="+activestreet.street_id+"===");
 						local_street_id = Long.parseLong(activestreet.street_id.substring(0,activestreet.street_id.indexOf(",")));
 					} else {
 						local_street_id = Long.parseLong(activestreet.street_id);
 					}
 				} else {
-System.out.println("missing street_id at actual street ===" + activestreet.name + "===");
+					logger.log(Level.FINE, "missing street_id at actual street ===" + activestreet.name + "===");
 				}
 
 				if(		(activestreet.point_leftbottom != null) && !activestreet.point_leftbottom.equals("")
@@ -419,7 +475,7 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 					streetresultwithGeomInsertStmt.setString(7, activestreet.osm_objectkeyvalue);
 					streetresultwithGeomInsertStmt.setString(8, activestreet.point_leftbottom);
 					streetresultwithGeomInsertStmt.setString(9, activestreet.point_righttop);
-					System.out.println("streetresultwithGeomInsertStmt: [eval-id] " + evaluationId + "  [street_id] " + local_street_id
+					logger.log(Level.FINE, "streetresultwithGeomInsertStmt: [eval-id] " + evaluationId + "  [street_id] " + local_street_id
 						+ "  [streetname] " + activestreet.name + "  [streetref] " + activestreet.streetref + "  [osm_id] " + activestreet.osm_id
 						+ "  [osm_typ] " + activestreet.osm_type + "  [osm_keyvalues] " + activestreet.osm_objectkeyvalue 
 						+ "  [bbox-lb] " + activestreet.point_leftbottom + "  [bbox-rt] " +activestreet.point_righttop);
@@ -432,7 +488,7 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 					streetresultwithoutGeomInsertStmt.setString(5, activestreet.osm_id);
 					streetresultwithoutGeomInsertStmt.setString(6, activestreet.osm_type);
 					streetresultwithoutGeomInsertStmt.setString(7, activestreet.osm_objectkeyvalue);
-					System.out.println("streetresultwithoutGeomInsertStmt: [eval-id] " + evaluationId + "  [street_id] " + local_street_id
+					logger.log(Level.FINE, "streetresultwithoutGeomInsertStmt: [eval-id] " + evaluationId + "  [street_id] " + local_street_id
 							+ "  [streetname] " + activestreet.name + "  [streetref] " + activestreet.streetref + "  [osm_id] " + activestreet.osm_id
 							+ "  [osm_typ] " + activestreet.osm_type + "  [osm_keyvalues] " + activestreet.osm_objectkeyvalue);
 					streetresultwithoutGeomInsertStmt.execute();
@@ -441,12 +497,12 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 			streetresultwithGeomInsertStmt.close();
 			streetresultwithoutGeomInsertStmt.close();
 
-			System.out.println("Start commit of insert street results ...");
+			logger.log(Level.INFO, "Start commit of insert street results ...");
 				// transaction commit
 			con_listofstreets.commit();
 				// re-activate standard auto-transation mode for every db-action
 			con_listofstreets.setAutoCommit(true);
-			System.out.println("Finished commit of insert street results ...");
+			logger.log(Level.INFO, "Finished commit of insert street results");
 
 			try {
 				evaluationUpdateStmt.setInt(1, streets_list_count);
@@ -454,42 +510,44 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 				evaluationUpdateStmt.setInt(3, streets_listonly_count);
 				evaluationUpdateStmt.setInt(4, streets_osmonly_count);
 				evaluationUpdateStmt.setLong(5, evaluationId);
-				System.out.println("evaluationUpdateStmt: [str_list_count] " + streets_list_count + "  [str_ident_count] " + streets_identical_count
+				logger.log(Level.FINE, "evaluationUpdateStmt: [str_list_count] " + streets_list_count + "  [str_ident_count] " + streets_identical_count
 					+ "  [str_listonly_count] " + streets_listonly_count + "  [str_osmonly_count] " + streets_osmonly_count
 					+ "  [eval_id] " + evaluationId);
 				evaluationUpdateStmt.execute();
 			}
 			catch( SQLException e) {
-				logger.log(Level.INFO, "ERROR: during insert in table evaluation, insert code was ===" + evaluationUpdateSql + "===");
-				logger.log(Level.FINE, e.toString());
+				logger.log(Level.SEVERE, "ERROR: during insert in table evaluation, insert code was ===" + evaluationUpdateSql + "===");
+				logger.log(Level.SEVERE, e.toString());
 				System.out.println("ERROR: during insert in table evaluation, insert code was ===" + evaluationUpdateSql + "===");
 				System.out.println(e.toString());
 			}
 			evaluationUpdateStmt.close();
 
 
-			System.out.println("strassen_soll_anzahl: " + streets_list_count);
-			System.out.println("streets_listonly_count: " + streets_listonly_count);
-			System.out.println("streets_osmonly_count: " + streets_osmonly_count);
+			logger.log(Level.INFO, "strassen_soll_anzahl: " + streets_list_count);
+			logger.log(Level.INFO, "streets_listonly_count: " + streets_listonly_count);
+			logger.log(Level.INFO, "streets_osmonly_count: " + streets_osmonly_count);
 		}
 		catch( SQLException e) {
 			logger.log(Level.INFO, e.toString());
 			System.out.println(e.toString());
 			return;
 		}
+		logger.log(Level.INFO, "   ----------------------------------------------------------------------------------------");
+		logger.log(Level.INFO, "   ----------------------------------------------------------------------------------------");
 	}
 
 
-	static Connection con_listofstreets = null;
-	static Connection con_mapnik = null;
-	static Applicationconfiguration configuration = new Applicationconfiguration();
 	
 	public static void main(String args[]) {
 		Boolean evaluationTypeFull = false;
 		String evaluationText = "";
 
 		
-		java.util.Date time_program_startedtime = new java.util.Date();
+		Date time_program_startedtime = new Date();
+		Long osmdata_duration_ms = 0L;
+		Long listdata_duration_ms = 0L;
+		Long storedata_duration_ms = 0L;
 		DateFormat time_formatter_mesz = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss z");
 		DateFormat time_formatter_iso8601 = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ");		// in iso8601 format, with timezone
 
@@ -499,8 +557,10 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 			Handler handler = new ConsoleHandler();
 			handler.setLevel(configuration.logging_console_level);
 			logger.addHandler( handler );
+			SimpleFormatter simpleformatter = new SimpleFormatter();
 			FileHandler fhandler = new FileHandler(configuration.logging_filename);
 			fhandler.setLevel(configuration.logging_file_level);
+			fhandler.setFormatter(simpleformatter);
 			logger.addHandler( fhandler );
 			logger.setLevel(configuration.logging_console_level);
 		} 
@@ -510,7 +570,7 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 		}
 
 		
-		logger.log(Level.FINE, "Program: Started Time: "+time_formatter_mesz.format(time_program_startedtime));
+		logger.log(Level.INFO, "Program: Started Time: "+time_formatter_mesz.format(time_program_startedtime));
 		
 		
 		
@@ -549,14 +609,16 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 	
 			String dateizeile = "";
 
+			OsmDataReader osmreader = new OsmDataReader();
+			StreetlistReader listreader = new StreetlistReader();
+			EvaluationNew evaluation = new EvaluationNew();
 
 			StreetCollection osmstreets = new StreetCollection();
-			StreetCollection liststreets = new StreetCollection();
 			StreetCollection mergedstreets = new StreetCollection();
 
 
-			java.util.Date time_evaluation = null;
-			java.util.Date time_osmdb = null;
+			Date time_evaluation = null;
+			Date time_osmdb = null;
 
 
 
@@ -656,9 +718,6 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 
 			String osmosis_laststatefile = configuration.osmosis_laststatefile;
 
-
-
-
 			logger.log(Level.FINE, "hole SQL-Statement Job-Suche ==="+sqlbefehl_jobs+"===");
 			Statement stmt_jobs = con_listofstreets.createStatement();
 			ResultSet rs_jobs = stmt_jobs.executeQuery( sqlbefehl_jobs );
@@ -666,7 +725,7 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 			Integer municipality_count = 0;
 			while(rs_jobs.next()) {
 
-				time_evaluation = new java.util.Date();
+				time_evaluation = new Date();
 
 				try {
 						// read the filestamp of the update of the local osm-db. This timestamp will be stored together with the evaluation
@@ -682,7 +741,7 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 								// change abbreviation Z to +00:00, otherwise parsing fails
 							local_time = local_time.replace("Z","+0000");
 							logger.log(Level.FINE, "local_time ==="+local_time+"===");
-							java.util.Date temp_time = new java.util.Date();
+							Date temp_time = new Date();
 							logger.log(Level.FINE, "test zeit iso8601 ==="+time_formatter_iso8601.format(temp_time)+"===");
 
 							time_osmdb = time_formatter_iso8601.parse(local_time);
@@ -711,13 +770,10 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 						continue;
 					}
 
-					EvaluationNew evaluation = new EvaluationNew();
-					StreetlistReader listreader = new StreetlistReader();
-					OsmDataReader osmreader = new OsmDataReader();
+					osmreader.initialize();
+					listreader.initialize();
+					evaluation.initialize();
 					
-					osmstreets.clear();
-					liststreets.clear();
-					mergedstreets.clear();
 						
 					if(rs_jobs.getString("countryname").equals("Brasil"))
 						evaluation.setStreetnameIdenticalLevel(StreetNameIdenticalLevel.ROUGHLY);
@@ -744,41 +800,65 @@ System.out.println("missing street_id at actual street ===" + activestreet.name 
 					evaluation.setEvaluationTypeFull(evaluationTypeFull);
 					evaluation.setEvaluationText(evaluationText);
 
+					logger.log(Level.FINE, "========================================================================================");
+					logger.log(Level.FINE, " # " + municipality_count + "  Job  =" + evaluation.getMunicipality() +"=   muni-id: "+evaluation.getmunicipalityDbId());
+					logger.log(Level.FINE, "----------------------------------------------------------------------------------------");
 
+					Date local_osmdata_start = new Date();
+					osmstreets.clear();
 					osmstreets = osmreader.ReadDataFromDB(evaluation);
+					Date local_osmdata_end = new Date();
+					osmdata_duration_ms += local_osmdata_end.getTime() - local_osmdata_start.getTime();
 
+					Date local_listdata_start = new Date();
 					listreader.setExistingStreetlist(osmstreets);
+					mergedstreets.clear();
 					mergedstreets = listreader.ReadListFromDB(evaluation);
+					Date local_listdata_end = new Date();
+					listdata_duration_ms += local_listdata_end.getTime() - local_listdata_start.getTime();
 //TODO remove duplicate osm street name objects. Happens, if not only name=*, but also name-Variation were stored in StreetCollection - mergedstreets = evaluation.removeHitVariation(mergedstreets);
 
+					Date local_storedata_start = new Date();
 					evaluation.storeEvaluation(mergedstreets);
+					Date local_storedata_end = new Date();
+					storedata_duration_ms += local_storedata_end.getTime() - local_storedata_start.getTime();
 
 					logger.log(Level.FINE, "========================================================================================");
 				}
 			}	// end of loop over all municiapalities
 			rs_jobs.close();
 
-			java.util.Date time_program_endedtime = new java.util.Date();
+			osmreader.close();
+			listreader.close();
+			evaluation.close();
+			
+			Date time_program_endedtime = new Date();
 			logger.log(Level.INFO, "Program: Ended Time: "+time_formatter_mesz.format(time_program_endedtime));
-			logger.log(Level.FINE, "Program: Duration in s: "+(time_program_endedtime.getTime()-time_program_startedtime.getTime())/1000);
+			logger.log(Level.INFO, "Program: Duration in s: "+(time_program_endedtime.getTime()-time_program_startedtime.getTime())/1000);
+			logger.log(Level.INFO, "Part OSM-Data Duration in s: " + (osmdata_duration_ms/1000));
+			logger.log(Level.INFO, "Part List-Data Duration in s: " + (listdata_duration_ms/1000));
+			logger.log(Level.INFO, "Part store Data Duration in s: " + (storedata_duration_ms/1000));
 		}
 		catch( SQLException e) {
-			logger.log(Level.INFO, e.toString());
+			logger.log(Level.SEVERE, "SQLException occured in EvaluationNew, details follows ...");
+			logger.log(Level.SEVERE, e.toString());
+			System.out.println("SQLException occured in EvaluationNew, details follows ...");
 			System.out.println(e.toString());
 			try {
 				con_listofstreets.rollback();
 				con_listofstreets.close();
 			} catch( SQLException innere) {
-				logger.log(Level.INFO, "inner sql-exception (tried to rollback transaction or to close connection ...");
-				logger.log(Level.INFO, innere.toString());
+				logger.log(Level.SEVERE, "inner sql-exception (tried to rollback transaction or to close connection ...");
+				logger.log(Level.SEVERE, innere.toString());
 				System.out.println("inner sql-exception (tried to rollback transaction or to close connection ...");
 				System.out.println(innere.toString());
 			}
 			return;
 		} catch (UnsupportedEncodingException e) {
-			logger.log(Level.INFO, e.toString());
+			logger.log(Level.SEVERE, "UnsupportedEncodingException occured in EvaluationNew, details follows ...");
+			logger.log(Level.SEVERE, e.toString());
+			System.out.println("UnsupportedEncodingException occured in EvaluationNew, details follows ...");
 			System.out.println(e.toString());
 		}
 	}
-
 }

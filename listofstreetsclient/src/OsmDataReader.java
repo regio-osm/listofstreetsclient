@@ -2,7 +2,6 @@
 
 import java.io.BufferedReader;
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
@@ -12,31 +11,76 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.logging.ConsoleHandler;
-import java.util.logging.FileHandler;
-import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import de.regioosm.listofstreetsclient.Applicationconfiguration;
 
 public class OsmDataReader {
-	Applicationconfiguration configuration = new Applicationconfiguration();
+	static Applicationconfiguration configuration = new Applicationconfiguration();
 	private static Logger logger = (Logger) EvaluationNew.logger;
-
-
 	static Connection con_mapnik = null;
 
+	public OsmDataReader() {
+		String url_mapnik = "";
+		
+		this.initialize();
 
-	
+		try {
+			if(con_mapnik == null) {
+				url_mapnik = configuration.db_osm2pgsql_url;
+				con_mapnik = DriverManager.getConnection(url_mapnik, configuration.db_osm2pgsql_username, configuration.db_osm2pgsql_password);
+			}
+			logger.log(Level.INFO, "Connection to database " + url_mapnik + " established.");
+		}
+		catch (SQLException e) {
+			logger.log(Level.SEVERE, "ERROR: failed to connect to database " + url_mapnik);
+			logger.log(Level.SEVERE, e.toString());
+			System.out.println("ERROR: failed to connect to database " + url_mapnik);
+			System.out.println(e.toString());
+			return;
+		}
+	}
+
+	/**
+	 * initial class properties
+	 */
+	public void initialize() {
+		//nothing to do yet
+	}
+
+
+	/**
+	 * 
+	 */
+	public void close() {
+			try {
+				if(con_mapnik != null) {
+					logger.log(Level.INFO, "Connection to mapnik DB " + con_mapnik.getMetaData().getURL() + " will be closed.");
+					con_mapnik.close();
+				}
+			}
+			catch( SQLException sqle) {
+				logger.log(Level.SEVERE, "SQL-Exception occured, when tried to close DB Connection, details follow ..");
+				logger.log(Level.SEVERE, sqle.toString());
+				System.out.println("SQL-Exception occured, when tried to close DB Connection, details follow ..");
+				System.out.println(sqle.toString());
+			}
+	}
+
+
 	public StreetCollection ReadDataFromDB(EvaluationNew  evaluation) {
 		StreetCollection streets = new StreetCollection();
 
 		if(		(evaluation.getCountry().equals(""))
 			||	(evaluation.getMunicipality().equals(""))) {
-				return new StreetCollection();
-			}		
+			return new StreetCollection();
+		}		
 
+		if(con_mapnik == null) {
+			return new StreetCollection();
+		}
+		
 		
 		String akt_jobname = evaluation.getMunicipality();
 		String akt_parameterstreetref = "";
@@ -46,49 +90,13 @@ public class OsmDataReader {
 		
 		streets.setEvaluationParameters(evaluation);
 
-if(1==0) {
-		try {
-
-			Handler handler = new ConsoleHandler();
-			handler.setLevel(configuration.logging_console_level);
-			logger.addHandler( handler );
-			FileHandler fhandler = new FileHandler(configuration.logging_filename);
-			fhandler.setLevel(configuration.logging_file_level);
-			logger.addHandler( fhandler );
-			logger.setLevel(configuration.logging_console_level);
-		} 
-		catch (IOException e) {
-			System.out.println("Fehler beim Logging-Handler erstellen, ...");
-			System.out.println(e.toString());
-		}
-}
 		String osmosis_laststatefile = configuration.osmosis_laststatefile;
 
 		try {
-			if(con_mapnik == null) {
-				String url_mapnik = configuration.db_osm2pgsql_url;
-				con_mapnik = DriverManager.getConnection(url_mapnik, configuration.db_osm2pgsql_username, configuration.db_osm2pgsql_password);
-			}
-	
 			String dateizeile = "";
-	
-	
-			java.util.Date time_act_municipality_starttime = null;
-			java.util.Date time_last_step = null;
-			java.util.Date time_now = null;
-	
-			java.util.Date time_evalation = null;
-			java.util.Date time_osmdb = null;
 	
 			DateFormat time_formatter_iso8601 = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ");		// in iso8601 format, with timezone
 	
-	
-			java.util.Date time_detail_start = null;
-			java.util.Date time_detail_end  = null;
-	
-			time_evalation = new java.util.Date();
-	
-
 				// read the filestamp of the update of the local osm-db. This timestamp will be stored together with the evaluation
 			BufferedReader filereader = new BufferedReader(new InputStreamReader(new FileInputStream(osmosis_laststatefile), StandardCharsets.UTF_8));
 					//#Fri Sep 21 07:39:59 CEST 2012
@@ -105,7 +113,6 @@ if(1==0) {
 					java.util.Date temp_time = new java.util.Date();
 					logger.log(Level.FINE, "test zeit iso8601 ==="+time_formatter_iso8601.format(temp_time)+"===");
 
-					time_osmdb = time_formatter_iso8601.parse(local_time);
 				}
 			}
 			filereader.close();
@@ -123,19 +130,14 @@ if(1==0) {
 			
 		Integer anzahl_datensaetze_osmstreets = 0;
 		Integer anzahl_datensaetze_osmplaces = 0;
-		Integer anzahl_datensaetze_sollliste = 0;
-		Integer anzahl_datensaetze_singlesoll = 0;
-		Integer anzahl_datensaetze_singleosm = 0;
 
 
-		logger.log(Level.FINE, "========================================================================================");
-		logger.log(Level.FINE, "   Job  =" + akt_jobname +"=   muni-id: "+evaluation.getmunicipalityDbId());
-		logger.log(Level.FINE, "----------------------------------------------------------------------------------------");
+		logger.log(Level.FINE, "   ----------------------------------------------------------------------------------------");
+		logger.log(Level.FINE, "   ----------------------------------------------------------------------------------------");
+		logger.log(Level.FINE, "      Read OSM Data - Job  =" + akt_jobname +"=   muni-id: "+evaluation.getmunicipalityDbId());
 
 
-		Long akt_municipality_id = evaluation.getmunicipalityDbId();
 		String akt_gebietsgeometrie = evaluation.getMunitipalityGeometryBinaryString();
-		String act_polygonstate = evaluation.getPolygonstate();
 
 		String sqlbefehl_objekte = "";
 		Statement stmt_objekte = null;
@@ -332,8 +334,6 @@ boolean examineStreetGeometryData = false;
 						rs_objekte.close();
 					if(stmt_objekte != null)
 						stmt_objekte.close();
-					//if(con_mapnik != null)
-					//	con_mapnik.close();
 					return new StreetCollection();
 				} 
 				catch(Exception e) {
@@ -588,6 +588,9 @@ boolean examineStreetGeometryData = false;
 			rs_objekte.close();
 			stmt_objekte.close();
 			//con_mapnik.close();
+
+			logger.log(Level.FINE, "   ----------------------------------------------------------------------------------------");
+			logger.log(Level.FINE, "   ----------------------------------------------------------------------------------------");
 		}
 		catch( SQLException sqle) {
 			logger.log(Level.SEVERE, "SQL-Exception occured, Details " + sqle.toString());

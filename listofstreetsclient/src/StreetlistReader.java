@@ -1,23 +1,10 @@
 
 
-import java.io.BufferedReader;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.logging.ConsoleHandler;
-import java.util.logging.FileHandler;
-import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -36,80 +23,93 @@ import de.regioosm.listofstreetsclient.Applicationconfiguration;
 
 
 public class StreetlistReader {
-	Applicationconfiguration configuration = new Applicationconfiguration();
+	static Applicationconfiguration configuration = new Applicationconfiguration();
 	private static Logger logger = (Logger) EvaluationNew.logger;
+	static Connection con_listofstreets = null;
+
 
 	private StreetCollection streets = new StreetCollection();
 
-	static Connection con_listofstreets = null;
+	public StreetlistReader() {
+		String url_listofstreets = ""; 
+
+		this.initialize();
+
+		if(con_listofstreets == null) {
+			try {
+	
+					//Connection of own project-specific DB
+				url_listofstreets = configuration.db_application_url;
+				con_listofstreets = DriverManager.getConnection(url_listofstreets, configuration.db_application_username, configuration.db_application_password);
+			}
+			catch (Exception e) {
+				logger.log(Level.INFO, "ERROR: failed to connect to DB ===" + url_listofstreets + "===");
+				logger.log(Level.INFO, e.toString());
+				System.out.println("ERROR: failed to connect to DB ===" + url_listofstreets + "===");
+				System.out.println(e.toString());
+				return;
+			}
+		}
+	}
+
+	/**
+	 * initial class properties
+	 */
+	public void initialize() {
+		streets.clear();
+	}
+	
+	
+	/**
+	 * 
+	 */
+	public void close() {
+			try {
+				if(con_listofstreets != null) {
+					logger.log(Level.INFO, "Connection to listofstreets DB " + con_listofstreets.getMetaData().getURL() + " will be closed.");
+					con_listofstreets.close();
+				}
+			}
+			catch( SQLException sqle) {
+				logger.log(Level.SEVERE, "SQL-Exception occured, when tried to close DB Connection, details follow ..");
+				logger.log(Level.SEVERE, sqle.toString());
+				System.out.println("SQL-Exception occured, when tried to close DB Connection, details follow ..");
+				System.out.println(sqle.toString());
+			}
+	}
 
 
 	public void setExistingStreetlist(StreetCollection streets) {
 		this.streets = streets;
 	}
 
+	
 	public StreetCollection ReadListFromDB(EvaluationNew evaluation) {
 
 		if(		(evaluation.getCountry().equals(""))
 			||	(evaluation.getMunicipality().equals(""))) {
-				return null;
-			}		
-if(1==0) {
-		try {
-
-			Handler handler = new ConsoleHandler();
-			handler.setLevel(configuration.logging_console_level);
-			logger.addHandler( handler );
-			FileHandler fhandler = new FileHandler(configuration.logging_filename);
-			fhandler.setLevel(configuration.logging_file_level);
-			logger.addHandler( fhandler );
-			logger.setLevel(configuration.logging_console_level);
-		} 
-		catch (IOException e) {
-			System.out.println("Fehler beim Logging-Handler erstellen, ...");
-			System.out.println(e.toString());
-		}
-}
+			return new StreetCollection();
+		}		
 
 		if(con_listofstreets == null) {
-			try {
-	
-					//Connection of own project-specific DB
-				String url_listofstreets = configuration.db_application_url;
-				con_listofstreets = DriverManager.getConnection(url_listofstreets, configuration.db_application_username, configuration.db_application_password);
-			}
-			catch (Exception e) {
-				logger.log(Level.INFO, "ERROR: failed to connect to DB===");
-				logger.log(Level.INFO, e.toString());
-				System.out.println("ERROR: failed to connect to DB===");
-				System.out.println(e.toString());
-				return streets;
-			}
+			return new StreetCollection();
 		}
 
 
 
 		String akt_jobname = evaluation.getMunicipality();
-		String akt_parameterstreetref = "";
-		if(evaluation.isStreetrefMustBeUsedForIdenticaly()) {
-			akt_parameterstreetref = evaluation.getStreetrefOSMKey();
-		}
 
-		logger.log(Level.FINE, "========================================================================================");
-		logger.log(Level.FINE, "   Job  =" + akt_jobname +"=   muni-id: "+evaluation.getmunicipalityDbId());
-		logger.log(Level.FINE, "----------------------------------------------------------------------------------------");
+		logger.log(Level.FINE, "   ----------------------------------------------------------------------------------------");
+		logger.log(Level.FINE, "   ----------------------------------------------------------------------------------------");
+		logger.log(Level.FINE, "   Read List Data - Job  =" + akt_jobname +"=   muni-id: "+evaluation.getmunicipalityDbId());
 
 
 		Long akt_municipality_id = evaluation.getmunicipalityDbId();
-		String akt_gebietsgeometrie = evaluation.getMunitipalityGeometryBinaryString();
-		String act_polygonstate = evaluation.getPolygonstate();
 
 		String sqlbefehl_objekte = "";
 		PreparedStatement stmt_objekte = null;
 		ResultSet rs_objekte = null;
 
-			// Array of all name-variants, which will be requested by sql-statement; most important at END
-		String[] keyvariation_namelist = {"old_name", "loc_name", "alt_name", "official_name", "name"};
 
 			
 		try {
@@ -148,6 +148,9 @@ if(1==0) {
 			rs_objekte.close();
 			stmt_objekte.close();
 			//con_listofstreets.close();
+
+			logger.log(Level.FINE, "   ----------------------------------------------------------------------------------------");
+			logger.log(Level.FINE, "   ----------------------------------------------------------------------------------------");
 		}
 		catch( SQLException sqle) {
 			logger.log(Level.SEVERE, "SQL-Exception, Details ===" + sqle.toString());
