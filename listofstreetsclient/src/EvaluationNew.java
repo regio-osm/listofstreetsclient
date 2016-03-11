@@ -109,7 +109,7 @@ public class EvaluationNew {
 	private Date evaluationTimestamp = null;
 	private boolean evaluationTypeFull = false;
 	private String evaluationText = "";
-	private Long fullEvaluationId = -1L;
+	private Integer fullEvaluationId = -1;
 
 	public static final Logger logger = Logger.getLogger(EvaluationNew.class.getName());
 	
@@ -228,7 +228,7 @@ public class EvaluationNew {
 		return this.evaluationTypeFull;
 	}
 
-	public Long getFullEvaluationId() {
+	public Integer getFullEvaluationId() {
 		return this.fullEvaluationId;
 	}
 
@@ -288,31 +288,16 @@ public class EvaluationNew {
 		this.osmdbTimestamp = timestamp;
 	}
 	
+	public void setFullEvaluationId(Integer id) {
+		this.fullEvaluationId = id;
+	}
+	
 	public void setEvaluationTimestamp(Date timestamp) {
 		this.evaluationTimestamp = timestamp;
 	}
 		
 	public void setEvaluationTypeFull(boolean full) {
 		this.evaluationTypeFull = full;
-		
-		if(full) {
-			try {
-				Integer next_full_overview_id = -1;
-				String sql_max_full_overview_id = "SELECT MAX(evaluation_number) AS max_full_number FROM evaluation_overview where evaluation_type = 'full';";
-				logger.log(Level.FINE, "hole SQL-Statement sql_max_full_overview_id ==="+sql_max_full_overview_id+"===");
-				Statement stmt_max_full_overview_id = con_listofstreets.createStatement();
-				ResultSet rs_max_full_overview_id = stmt_max_full_overview_id.executeQuery( sql_max_full_overview_id );
-				if(rs_max_full_overview_id.next()) {
-					this.fullEvaluationId = 1 + rs_max_full_overview_id.getLong("max_full_number");
-					logger.log(Level.FINE, "got already used max number for full evaluation type ==="+next_full_overview_id+"===");
-				}
-			}
-			catch( SQLException e) {
-				logger.log(Level.INFO, e.toString());
-				System.out.println(e.toString());
-				return;
-			}
-		}
 	}
 
 	public void setEvaluationText(String text) {
@@ -323,7 +308,6 @@ public class EvaluationNew {
 	
 	private void storeEvaluation(StreetCollection streets) {
 
-		Integer evaluationOverviewId = -1;		
 		
 		DateFormat time_formatter_iso8601wozone = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");		// in iso8601 format, without timezone
 		DateFormat time_formatter_dateonly = new SimpleDateFormat("yyyy-MM-dd");
@@ -340,39 +324,44 @@ public class EvaluationNew {
 		try {
 			if(this.getEvaluationTypeFull()) {
 
-				if(this.getEvaluationText().equals("")) {
-					Date temp_time = new Date();
-					this.setEvaluationText(time_formatter_dateonly.format(temp_time));
-					logger.log(Level.FINE, "test zeit onlydate ==="+this.getEvaluationText()+"===");
-				}
 
-	
-				String insertbefehl_evalationoverview = "INSERT INTO evaluation_overview (evaluation_first_id, evaluation_last_id, description, evaluation_type, evaluation_number) ";
-				insertbefehl_evalationoverview += "VALUES (-1, -1, ?, 'full', ?);";
-				logger.log(Level.FINE, "insertbefehl_evalationoverview ==="+insertbefehl_evalationoverview+"===");
-				String[] dbautogenkeys = { "id" };
-				PreparedStatement stmt_insertevalationoverview = con_listofstreets.prepareStatement(insertbefehl_evalationoverview, dbautogenkeys);
-				stmt_insertevalationoverview.setString(1, this.getEvaluationText());
-				stmt_insertevalationoverview.setLong(2, this.getFullEvaluationId());
-				try {
+				if(getFullEvaluationId() == -1) {
+					if(this.getEvaluationText().equals("")) {
+						Date temp_time = new Date();
+						this.setEvaluationText(time_formatter_dateonly.format(temp_time));
+						logger.log(Level.FINE, "test zeit onlydate ==="+this.getEvaluationText()+"===");
+					}
+
+					Integer local_next_evaluationumber = -1;
+					String sql_max_full_overview_id = "SELECT MAX(evaluation_number) AS max_full_number FROM evaluation_overview where evaluation_type = 'full';";
+					logger.log(Level.FINE, "hole SQL-Statement sql_max_full_overview_id ==="+sql_max_full_overview_id+"===");
+					Statement stmt_max_full_overview_id = con_listofstreets.createStatement();
+					ResultSet rs_max_full_overview_id = stmt_max_full_overview_id.executeQuery( sql_max_full_overview_id );
+					if(rs_max_full_overview_id.next()) {
+						local_next_evaluationumber = 1 + rs_max_full_overview_id.getInt("max_full_number");
+						logger.log(Level.FINE, "got already used max number for full evaluation type ===" + local_next_evaluationumber + "===");
+					}
+		
+					String insertbefehl_evalationoverview = "INSERT INTO evaluation_overview (evaluation_first_id, evaluation_last_id, description, evaluation_type, evaluation_number) ";
+					insertbefehl_evalationoverview += "VALUES (-1, -1, ?, 'full', ?);";
+					logger.log(Level.FINE, "insertbefehl_evalationoverview ==="+insertbefehl_evalationoverview+"===");
+					String[] dbautogenkeys = { "id" };
+					PreparedStatement stmt_insertevalationoverview = con_listofstreets.prepareStatement(insertbefehl_evalationoverview, dbautogenkeys);
+					stmt_insertevalationoverview.setString(1, this.getEvaluationText());
+					stmt_insertevalationoverview.setLong(2, local_next_evaluationumber);
 					stmt_insertevalationoverview.execute();
-					ResultSet rs_getautogenkeys = stmt_insertevalationoverview.getGeneratedKeys();
-				    while (rs_getautogenkeys.next()) {
-				    	logger.log(Level.FINE, "Key returned from getGeneratedKeys():"
-				            + rs_getautogenkeys.getInt(1));
-				    	evaluationOverviewId = rs_getautogenkeys.getInt("id");
-				        logger.log(Level.FINE, "got new id from table evalation_overview, id ===" + evaluationOverviewId + "===");
-				    } 
-				    rs_getautogenkeys.close();
+
+					ResultSet insertevalationoverviewRS = stmt_insertevalationoverview.getGeneratedKeys();
+				    while (insertevalationoverviewRS.next()) {
+				    	logger.log(Level.FINEST, "Key returned from getGeneratedKeys():"
+				            + insertevalationoverviewRS.getLong(1));
+				    	setFullEvaluationId(insertevalationoverviewRS.getInt("id"));
+				    }
+				    insertevalationoverviewRS.close();
 				    stmt_insertevalationoverview.close();
 				}
-				catch( SQLException e) {
-					logger.log(Level.INFO, "ERROR: during insert in table evaluation_overview, insert code was ==="+insertbefehl_evalationoverview+"===");
-					logger.log(Level.INFO, e.toString());
-					System.out.println("ERROR: during insert in table evaluation_overview, insert code was ==="+insertbefehl_evalationoverview+"===");
-					System.out.println(e.toString());
-				}
 			}
+
 
 			String streetresultwithGeomInsertSql = "INSERT INTO evaluation_street"
 				+ " (evaluation_id, street_id, name, streetref, osm_id, osm_type, osm_keyvalue, osm_point_leftbottom, osm_point_righttop)"
@@ -396,11 +385,11 @@ public class EvaluationNew {
 			logger.log(Level.FINEST, "insert sql for evaluation ===" + evaluationInsertSql + "===");
 			evaluationInsertStmt.setLong(1, this.getCountryDbId());
 			evaluationInsertStmt.setLong(2, this.getmunicipalityDbId());
-			evaluationInsertStmt.setLong(3, evaluationOverviewId);
+			evaluationInsertStmt.setInt(3, this.getFullEvaluationId());
 			evaluationInsertStmt.setString(4, time_formatter_iso8601wozone.format(this.getEvaluationTimestamp()));
 			evaluationInsertStmt.setString(5, time_formatter_iso8601wozone.format(this.getOsmdbTimestamp()));
 			logger.log(Level.FINE, "evaluationInsertStmt: [country_id] " + this.getCountryDbId() + "  [muni_id] " + this.getmunicipalityDbId()
-				+ "  [eval_overview_id] " + evaluationOverviewId + "  [eval_tstamp] " + time_formatter_iso8601wozone.format(this.getEvaluationTimestamp())
+				+ "  [eval_overview_id] " + getFullEvaluationId() + "  [eval_tstamp] " + time_formatter_iso8601wozone.format(this.getEvaluationTimestamp())
 				+ "  [osmdb_tstamp] " +time_formatter_iso8601wozone.format(this.getOsmdbTimestamp()));
 
 			try {
@@ -728,7 +717,6 @@ public class EvaluationNew {
 
 
 			String osmosis_laststatefile = configuration.osmosis_laststatefile;
-
 
 			logger.log(Level.FINE, "hole SQL-Statement Job-Suche ==="+sqlbefehl_jobs+"===");
 			Statement stmt_jobs = con_listofstreets.createStatement();
