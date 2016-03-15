@@ -828,6 +828,9 @@ public class EvaluationNew {
 			}	// end of loop over all municiapalities
 			rs_jobs.close();
 
+				// print time durations after all jobs into log - just for getting most time consuming code parts
+			osmreader.printTimeDurations();
+
 			osmreader.close();
 			listreader.close();
 			evaluation.close();
