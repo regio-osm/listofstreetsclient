@@ -362,7 +362,14 @@ public class EvaluationNew {
 				}
 			}
 
-
+/*
+			String deletesqlstring = "SELECT id FROM street WHERE municipality_id = "+municipality_id+";";
+			System.out.println("sql-delete statement for all streets of actual municipality-ID: "+municipality_id+"     ==="+deletesqlstring+"===");
+			stmt.executeUpdate( deletesqlstring );
+			rs_municipality = stmt.executeQuery( sqlbefehl_municipality );
+			System.out.println("streets deleted.");
+*/			
+			
 			String streetresultwithGeomInsertSql = "INSERT INTO evaluation_street"
 				+ " (evaluation_id, street_id, name, streetref, osm_id, osm_type, osm_keyvalue, osm_point_leftbottom, osm_point_righttop)"
 				+ " VALUES (?, ?, ?, ?, ?, ?, ?, ST_Geomfromtext(?, 4326), ST_Geomfromtext(?, 4326));";
@@ -550,6 +557,7 @@ public class EvaluationNew {
 		Long storedata_duration_ms = 0L;
 		DateFormat time_formatter_mesz = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss z");
 		DateFormat time_formatter_iso8601 = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ");		// in iso8601 format, with timezone
+		String parameterConfiguration = "";
 
 
 		try {
@@ -586,8 +594,21 @@ public class EvaluationNew {
 			System.out.println("-municipalityhierarchy somestring");
 			System.out.println("-evaluationtext somestring");
 			System.out.println("-evaluationtype full (optional)");
+			System.out.println("-configuration filenameorabsolutepathandfilename");
 			return;
 		}
+
+		if(args.length >= 1) {
+			int args_ok_count = 0;
+			for(int argsi=0;argsi<args.length;argsi+=2) {
+				if(args[argsi].equals("-configuration")) {
+					logger.log(Level.FINE, " args pair analysing #: "+argsi+"  ==="+args[argsi]+"===   #+1: "+(argsi+1)+"   ==="+args[argsi+1]+"===");
+					parameterConfiguration = args[argsi+1];
+					args_ok_count += 2;
+				}
+			}
+		}
+
 
 		try {
 			logger.log(Level.FINEST, "ok, jetzt Class.forName Aufruf ...");
@@ -715,6 +736,10 @@ public class EvaluationNew {
 
 			sqlbefehl_jobs += " ORDER BY osm_hierarchy, name;";
 
+			if(!parameterConfiguration.equals("")) {
+				logger.log(Level.INFO, "read excplicit given configuration file ===" + parameterConfiguration + "===");
+				configuration = new Applicationconfiguration(parameterConfiguration);
+			}
 
 			String osmosis_laststatefile = configuration.osmosis_laststatefile;
 
