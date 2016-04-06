@@ -28,15 +28,25 @@ public class Applicationconfiguration {
 	public Level logging_console_level = Level.FINEST;
 	public Level logging_file_level = Level.FINEST;
 	
+	/**
+	 * use standard application configuration file
+	 */
 	public Applicationconfiguration () {
-			// get some configuration infos
-		String configuration_filename = "listofstreets.properties";		
+		this("listofstreetsclient.properties");
+	}
+	
+	/**
+	 * 
+	 * @param configurationFilename  use explicit given application configuration file for special purposes
+	 */
+	public Applicationconfiguration (String configurationFilename) {
+
 
 		final String dir = System.getProperty("user.dir");
 		System.out.println("current dir = " + dir);
 
 		try {
-			Reader reader = new FileReader( configuration_filename );
+			Reader reader = new FileReader( configurationFilename );
 			Properties prop = new Properties();
 			prop.load( reader );
 			prop.list( System.out );
@@ -107,7 +117,7 @@ public class Applicationconfiguration {
 			System.out.println(" .logging_file_level                      ==="+this.logging_file_level.toString() +"===");
 
 		} catch (Exception e) {
-			System.out.println("ERROR: failed to read file ==="+configuration_filename+"===");
+			System.out.println("ERROR: failed to read file ==="+configurationFilename+"===");
 			e.printStackTrace();
 			return;
 		}
